@@ -236,14 +236,20 @@ async function saveEditor(event) {
   event.preventDefault(); if (!state.editor) return;
   const editor = state.editor, data = { title: $('task-title').value, prompt: $('task-prompt').value, position: Number($('task-position').value) };
   $('save-task').disabled = true; $('form-error').textContent = '';
+  let saved = false;
   try {
     const result = editor.task
       ? await api('c/update', { ...data, task_id: editor.task.id, expected_version: editor.task.version, status: $('task-status').value })
       : await api('c/create', { ...data, kind: editor.kind, parent_id: editor.parent_id });
-    $('task-dialog').close(); await loadBoard(true);
+    saved = true;
+    await loadBoard(true);
     if (!editor.task && editor.kind === 'epic') selectEpic(result.task_id);
+    $('task-dialog').close();
     toast(editor.task ? 'Task and prompt saved.' : 'Task created.');
-  } catch (error) { $('form-error').textContent = error.message; }
+  } catch (error) {
+    if (saved) { $('task-dialog').close(); toast('Task saved. Refresh to load the latest state: ' + error.message); }
+    else $('form-error').textContent = error.message;
+  }
   finally { $('save-task').disabled = false; }
 }
 function descendantCount(id) { return children(id).reduce((sum, child) => sum + 1 + descendantCount(child.id), 0); }

@@ -1,10 +1,11 @@
 import os
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Page, Route, expect, sync_playwright
 
 from tests.support import running_server
 
@@ -60,6 +61,13 @@ def create(
 def test_editable_prompts_and_explicit_completion(page: Page) -> None:
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
+
+    def delayed_board(route: Route) -> None:
+        response = route.fetch()
+        time.sleep(0.2)
+        route.fulfill(response=response)
+
+    page.route("**/api/planning/q/board", delayed_board)
     page.locator("#add-task").click()
     save_form(page, "Directory compatibility", "# Epic\nKeep the context")
     expect(page.locator("h1")).to_have_text("Directory compatibility")
@@ -143,9 +151,14 @@ def test_flat_hover_contours_responsive_layout_and_safe_titles(
     page.screenshot(path=str(out / "workspace.png"), full_page=True)
     for width in [320, 390, 768, 1440]:
         page.set_viewport_size({"width": width, "height": 1000})
-        assert page.evaluate(
-            "document.documentElement.scrollWidth <= innerWidth",
-        )
+        layout = page.evaluate("""() => ({
+            width: innerWidth,
+            scroll: document.documentElement.scrollWidth,
+            overflowing: [...document.querySelectorAll('body *')]
+                .filter(e => e.getBoundingClientRect().right > innerWidth + 1)
+                .slice(0, 12).map(e => e.tagName + '.' + e.className)
+        })""")
+        assert layout["scroll"] <= width, layout
         first_cell.hover()
         expect(page.locator(".task-boundary.active")).to_have_attribute(
             "data-group",
