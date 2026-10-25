@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Eonarq · Epic tracker</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+  <script type="module" src="{{ url_for('static', path='/app.js') }}"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Epic navigation">
+      <a class="brand" href="/" aria-label="Eonarq overview"><span class="brand-mark">e</span>eonarq<span class="local-badge">LOCAL</span></a>
+      <button class="nav-overview" id="overview" type="button">All epics <span id="epic-count">0</span></button>
+      <div class="sidebar-heading"><span>EPICS</span><button class="icon-button" id="new-epic" type="button" aria-label="Create epic">+</button></div>
+      <nav id="epic-nav" aria-label="Epics"></nav>
+      <div class="sidebar-footer"><span class="local-dot"></span>Local workspace <span>v{{ version }}</span></div>
+    </aside>
+    <main class="workspace" id="main">
+      <header class="page-header">
+        <div><p class="eyebrow" id="breadcrumb">WORKSPACE / OVERVIEW</p><h1 id="page-title">Your work, in view.</h1><p class="intro" id="page-description">Epics, master tasks and the steps that move them forward.</p></div>
+        <div class="actions"><button class="button" id="refresh" type="button">Refresh</button><button class="button" id="edit-epic" type="button" hidden>Edit epic</button><button class="button primary" id="add-task" type="button">+ New epic</button></div>
+      </header>
+      <div class="metrics" aria-label="Progress summary">
+        <div class="metric"><strong id="metric-percent">0%</strong><span>task progress</span></div>
+        <div class="metric"><strong id="metric-leaves">0 / 0</strong><span>leaf tasks complete</span></div>
+        <div class="metric"><strong id="metric-masters">0 / 0</strong><span>master tasks closed</span></div>
+      </div>
+      <section class="panel chart-panel" aria-labelledby="chart-title">
+        <div class="panel-heading"><h2 id="chart-title">Task progress</h2><div class="legend"><span><i class="swatch done"></i>Done</span><span><i class="swatch"></i>Open</span></div></div>
+        <div class="chart-padding"><div class="waffle" id="waffle" role="group" aria-label="Task progress squares"></div></div>
+        <output id="cell-hint" class="cell-hint" aria-live="polite">Create an epic to start your plan.</output>
+        <div class="chart-clarification" id="chart-clarification">Each square is a leaf task. Hover a square to outline its epic.</div>
+        <div id="group-legend" class="group-legend"></div>
+      </section>
+      <section aria-labelledby="tasks-title" class="tasks-section">
+        <div class="section-heading"><h2 id="tasks-title">Epics</h2><span class="muted" id="tasks-count"></span></div>
+        <div id="task-list"></div>
+      </section>
+      <footer class="workspace-footer">Prompts stay editable. Progress counts completed leaf tasks; parent tasks are closed explicitly.</footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="task-dialog" aria-labelledby="dialog-title">
+    <form id="task-form">
+      <div class="dialog-heading"><div><p class="eyebrow" id="dialog-kind">EPIC</p><h2 id="dialog-title">New epic</h2></div><button class="icon-button" id="close-dialog" type="button" aria-label="Close editor">×</button></div>
+      <label class="field">Title<input name="title" id="task-title" required maxlength="200" autocomplete="off"></label>
+      <div class="field-row"><label class="field">Status<select name="status" id="task-status"><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></label><label class="field small-field">Order<input name="position" id="task-position" type="number" min="0" max="1000000" value="0" required></label></div>
+      <label class="field">Prompt <span class="field-note">Markdown · inherited by child tasks through MCP</span><textarea name="prompt" id="task-prompt" rows="12" maxlength="200000" placeholder="Context, desired outcome and acceptance criteria…" spellcheck="false"></textarea></label>
+      <p class="form-error" id="form-error" role="alert"></p>
+      <div class="dialog-actions"><button class="button danger" id="delete-task" type="button" hidden>Delete task</button><span class="spacer"></span><button class="button" id="cancel-dialog" type="button">Cancel</button><button class="button primary" id="save-task" type="submit">Save task</button></div>
+    </form>
+  </dialog>
+  <noscript>Enable JavaScript to use Eonarq. The HTTP API is available at /docs.</noscript>
+</body>
+</html>

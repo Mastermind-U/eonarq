@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local tracker data and diagnostics
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+.misc/
+.import_linter_cache/

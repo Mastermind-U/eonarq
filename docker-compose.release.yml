@@ -1,0 +1,17 @@
+services:
+  eonarq:
+    image: ghcr.io/mastermind-u/eonarq:${EONARQ_TAG:-latest}
+    ports:
+      - "127.0.0.1:${EONARQ_PORT:-8765}:8765"
+    environment:
+      EONARQ_HOST: "0.0.0.0"
+      EONARQ_PORT: "8765"
+      EONARQ_DATABASE_URL: "sqlite:////data/eonarq.sqlite3"
+    volumes:
+      - eonarq_data:/data
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+
+volumes:
+  eonarq_data:

@@ -1,0 +1,17 @@
+from typing import Protocol
+
+from eonarq.shared_kernel.domain.entities import BaseEntity
+
+
+class EntitySaver(Protocol):
+    def add(self, entity: BaseEntity) -> None: ...
+
+    def delete(self, entity: BaseEntity) -> None: ...
+
+
+class TransactionManager(Protocol):
+    def begin(self) -> None: ...
+
+    def commit(self) -> None: ...
+
+    def rollback(self) -> None: ...
