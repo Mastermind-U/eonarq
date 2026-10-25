@@ -3,6 +3,7 @@ from uuid import UUID
 
 from eonarq.planning.common.domain.exceptions import InvalidTask, TaskNotFound
 from eonarq.planning.common.domain.types import TaskKind, TaskStatus
+from eonarq.planning.query.application.common.metrics import summarize_flow
 from eonarq.planning.query.application.common.validators import validate_id
 from eonarq.planning.query.application.dtos import (
     BoardInput,
@@ -46,6 +47,9 @@ class GetBoard:
             done,
             len(cells),
             round(done / len(cells) * 100, 1) if cells else 0,
+            summarize_flow(
+                children.get(data.epic_id, []) if data.epic_id else roots,
+            ),
         )
 
     def _visit(
@@ -93,6 +97,7 @@ class GetBoard:
                 done,
                 total,
                 round(done / total * 100, 1),
+                summarize_flow(descendants),
             ),
         )
         return done, total

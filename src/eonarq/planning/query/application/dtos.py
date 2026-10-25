@@ -16,6 +16,17 @@ class TaskInput:
 
 
 @dataclass(frozen=True, slots=True)
+class FlowMetricsData:
+    total: int
+    todo: int
+    in_progress: int
+    blocked: int
+    done: int
+    wip: int
+    completion_percent: float
+
+
+@dataclass(frozen=True, slots=True)
 class TaskData:
     id: UUID
     parent_id: UUID | None
@@ -27,6 +38,7 @@ class TaskData:
     done: int
     total: int
     percent: float
+    flow: FlowMetricsData
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +57,7 @@ class BoardOutput:
     done: int
     total: int
     percent: float
+    flow: FlowMetricsData
 
 
 @dataclass(frozen=True, slots=True)

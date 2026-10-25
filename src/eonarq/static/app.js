@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const state = { board: null, byId: new Map(), epic: new URL(location.href).searchParams.get('epic'), editor: null, hovered: null, focused: null, loading: null, fingerprint: null };
+const state = { board: null, byId: new Map(), epic: new URL(location.href).searchParams.get('epic'), editor: null, hovered: null, focused: null, loading: null, fingerprint: null, dragged: null, pending: new Set() };
 const statusLabels = { todo: 'To do', in_progress: 'In progress', blocked: 'Blocked', done: 'Done' };
 const kindLabels = { epic: 'epic', master: 'master task', subtask: 'subtask' };
 let toastTimer;
@@ -71,17 +71,27 @@ function render() {
   state.hovered = null; state.focused = null;
   renderSidebar();
   const epic = currentEpic(), cells = scopedCells(), done = cells.filter(cell => cell.status === 'done').length;
-  const masters = state.board.tasks.filter(task => task.kind === 'master' && (!state.epic || task.parent_id === state.epic));
+  const flow = epic ? epic.flow : state.board.flow;
   $('breadcrumb').textContent = epic ? 'WORKSPACE / EPIC' : 'WORKSPACE / OVERVIEW';
   $('page-title').textContent = epic ? epic.title : 'Your work, in view.';
-  $('page-description').textContent = epic ? statusLabels[epic.status] + ' · Master tasks, subtasks and prompts for this epic.' : 'Epics, master tasks and the steps that move them forward.';
+  $('page-description').textContent = epic ? statusLabels[epic.status] + ' · Master tasks, subtasks and prompts for this epic.' : 'Move epics through your workflow, then open one to plan the details.';
   $('add-task').textContent = epic ? '+ Add master task' : '+ New epic'; $('edit-epic').hidden = !epic;
   $('metric-percent').textContent = percent(cells.length ? done / cells.length * 100 : 0);
   $('metric-leaves').textContent = done + ' / ' + cells.length;
-  $('metric-masters').textContent = masters.filter(task => task.status === 'done').length + ' / ' + masters.length;
-  $('tasks-title').textContent = epic ? 'Master tasks' : 'Epics';
-  $('tasks-count').textContent = (epic ? masters.length : roots().length) + (epic ? ' master tasks' : ' epics');
-  renderChart(cells); renderTasks();
+  $('metric-masters').textContent = flow.done + ' / ' + flow.total;
+  $('metric-closed-label').textContent = epic ? 'master tasks closed' : 'epics closed';
+  $('metric-wip').textContent = flow.wip;
+  $('metric-wip-note').textContent = 'In progress + blocked ' + (epic ? 'masters' : 'epics');
+  $('metric-blocked').textContent = flow.blocked;
+  $('metric-blocked-label').textContent = epic ? 'blocked master tasks' : 'blocked epics';
+  $('epic-chart').hidden = !epic;
+  $('board-hint').hidden = !!epic;
+  $('board-viewport').classList.toggle('epic-view', !!epic);
+  $('board-viewport').setAttribute('aria-label', epic ? 'Master tasks' : 'Agile board');
+  $('tasks-title').textContent = epic ? 'Master tasks' : 'Agile board';
+  $('tasks-count').textContent = flow.total + (epic ? ' master tasks' : ' epics');
+  if (epic) renderChart(cells); else $('waffle').replaceChildren();
+  renderTasks();
 }
 function highlightBoundary() {
   const active = state.hovered ?? state.focused;
@@ -193,17 +203,84 @@ function checkbox(task) {
 function emptyState(title, description) {
   const empty = node('div', 'empty-state'); empty.append(node('strong', '', title), node('span', '', description)); return empty;
 }
+function setCardBusy(id, busy) {
+  const card = $('task-list').querySelector('.kanban-card[data-task="' + id + '"]');
+  if (!card) return;
+  card.setAttribute('aria-busy', String(busy)); card.draggable = !busy;
+  card.querySelectorAll('button, select').forEach(control => { control.disabled = busy; });
+  if (!busy) card.querySelector('.card-status').value = state.byId.get(id)?.status;
+}
+async function changeTaskStatus(task, status) {
+  if (task.status === status || state.pending.has(task.id)) return;
+  state.pending.add(task.id); setCardBusy(task.id, true);
+  try {
+    await api('c/update', { task_id: task.id, expected_version: task.version, status });
+    await loadBoard(true); toast('Moved ' + task.title + ' to ' + statusLabels[status] + '.');
+  } catch (error) {
+    try { await loadBoard(true); } catch { /* The next refresh retries the read. */ }
+    throw error;
+  } finally { state.pending.delete(task.id); setCardBusy(task.id, false); }
+}
+function clearDrag() {
+  state.dragged = null;
+  document.querySelectorAll('.drag-over, .dragging').forEach(element => element.classList.remove('drag-over', 'dragging'));
+}
+function epicCard(task, number) {
+  const card = node('article', 'epic-card kanban-card'); card.dataset.task = task.id;
+  card.setAttribute('role', 'listitem'); card.draggable = !state.pending.has(task.id);
+  const kicker = node('div', 'card-kicker'), handle = node('span', 'drag-handle', '⠿'); handle.setAttribute('aria-hidden', 'true'); handle.title = 'Drag epic';
+  kicker.append(handle, node('span', '', 'Epic ' + String(number).padStart(2, '0')));
+  const summary = node('div', 'card-progress-copy'); summary.append(node('span', '', task.done + ' / ' + task.total + ' leaf tasks'), node('span', '', percent(task.percent)));
+  const controls = node('div', 'card-controls'), select = node('select', 'card-status'); select.setAttribute('aria-label', 'Status for ' + task.title);
+  for (const [value, label] of Object.entries(statusLabels)) {
+    const option = node('option', '', label); option.value = value; select.append(option);
+  }
+  select.value = task.status; select.disabled = state.pending.has(task.id);
+  select.addEventListener('change', () => run(() => changeTaskStatus(task, select.value)));
+  controls.append(select, button('Edit prompt', 'task-edit', () => openEditor(task.id), 'Edit prompt for ' + task.title));
+  card.append(kicker, button(task.title, 'title-button', () => selectEpic(task.id)), summary, progress(task), node('div', 'card-master-count', task.flow.total ? task.flow.done + ' / ' + task.flow.total + ' master tasks closed' : 'No master tasks yet'), controls);
+  if (state.pending.has(task.id)) { card.setAttribute('aria-busy', 'true'); card.querySelectorAll('button').forEach(control => { control.disabled = true; }); }
+  card.addEventListener('dragstart', event => {
+    if (state.pending.has(task.id) || event.target.closest('button, select, input, textarea, a')) { event.preventDefault(); return; }
+    state.dragged = task; event.dataTransfer.setData('text/plain', task.id); event.dataTransfer.effectAllowed = 'move'; card.classList.add('dragging');
+  });
+  card.addEventListener('dragend', clearDrag);
+  return card;
+}
+function renderKanban() {
+  const list = $('task-list'), epics = roots(); list.className = 'kanban-board';
+  const numbers = new Map(epics.map((task, index) => [task.id, index + 1]));
+  for (const [status, label] of Object.entries(statusLabels)) {
+    const tasks = epics.filter(task => task.status === status), column = node('section', 'kanban-column'); column.dataset.status = status;
+    const heading = node('div', 'column-heading'), title = node('h3', '', label); title.id = 'column-' + status; column.setAttribute('aria-labelledby', title.id);
+    heading.append(node('span', 'status-dot ' + status), title, node('span', 'column-count', tasks.length));
+    const cards = node('div', 'kanban-cards'); cards.setAttribute('role', 'list'); cards.setAttribute('aria-label', label + ' epics');
+    for (const task of tasks) cards.append(epicCard(task, numbers.get(task.id)));
+    if (!tasks.length) cards.append(node('p', 'column-empty', !epics.length && status === 'todo' ? 'Create your first epic to start your plan.' : 'No epics. Drop a card here.'));
+    column.append(heading, cards);
+    column.addEventListener('dragover', event => {
+      if (!state.dragged) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = 'move'; column.classList.add('drag-over');
+      const viewport = $('board-viewport'), bounds = viewport.getBoundingClientRect();
+      if (event.clientX < bounds.left + 35) viewport.scrollLeft -= 18;
+      else if (event.clientX > bounds.right - 35) viewport.scrollLeft += 18;
+    });
+    column.addEventListener('dragleave', event => { if (!column.contains(event.relatedTarget)) column.classList.remove('drag-over'); });
+    column.addEventListener('drop', event => {
+      const task = state.dragged;
+      if (!task || event.dataTransfer.getData('text/plain') !== task.id) return;
+      event.preventDefault(); clearDrag(); run(() => changeTaskStatus(task, status));
+    });
+    list.append(column);
+  }
+}
 function renderTasks() {
-  const list = $('task-list'); list.replaceChildren(); list.className = state.epic ? '' : 'epic-cards';
-  const tasks = state.epic ? children(state.epic) : roots();
-  if (!tasks.length) { list.className = ''; list.append(emptyState(state.epic ? 'Break the epic into master tasks.' : 'A clear place for a long plan.', state.epic ? 'Add a master task, then give it subtasks and a prompt.' : 'Create your first epic. Give it a goal, then plan the work beneath it.')); return; }
+  const list = $('task-list'); list.replaceChildren();
+  if (!state.epic) { renderKanban(); return; }
+  list.className = '';
+  const tasks = children(state.epic);
+  if (!tasks.length) { list.append(emptyState('Break the epic into master tasks.', 'Add a master task, then give it subtasks and a prompt.')); return; }
   tasks.forEach((task, index) => {
-    if (!state.epic) {
-      const card = node('article', 'panel epic-card'), top = node('div', 'card-top');
-      top.append(button(task.title, 'title-button', () => selectEpic(task.id)), badge(task));
-      const footer = node('div', 'card-footer'); footer.append(node('span', '', task.done + ' / ' + task.total + ' leaf tasks · ' + percent(task.percent)), button('Edit prompt', 'button', () => openEditor(task.id)));
-      card.append(top, progress(task), footer); list.append(card); return;
-    }
     const panel = node('article', 'panel master-panel'), top = node('div', 'master-top'), title = node('div', 'master-title');
     title.append(checkbox(task), node('span', 'task-number', String(index + 1).padStart(2, '0')), button(task.title, 'title-button', () => openEditor(task.id)));
     const actions = node('div', 'master-actions'); actions.append(badge(task), button('+ Subtask', 'button', () => openNew('subtask', task.id)), button('Edit', 'button', () => openEditor(task.id), 'Edit ' + task.title));
@@ -269,5 +346,5 @@ $('task-form').addEventListener('submit', saveEditor);
 $('delete-task').addEventListener('click', () => run(deleteEditorTask));
 for (const id of ['close-dialog', 'cancel-dialog']) $(id).addEventListener('click', () => $('task-dialog').close());
 new ResizeObserver(drawBoundaries).observe($('waffle'));
-setInterval(() => { if (!$('task-dialog').open) run(() => loadBoard()); }, 5000);
+setInterval(() => { if (!$('task-dialog').open && !state.dragged && !state.pending.size) run(() => loadBoard()); }, 5000);
 run(() => loadBoard());

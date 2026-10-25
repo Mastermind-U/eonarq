@@ -122,11 +122,19 @@ def test_flat_hover_contours_responsive_layout_and_safe_titles(
     unsafe_title = '<img src=x onerror="window.eonarqInjected=true">'
     create(page, unsafe_title, "master", other_epic)
     page.locator("#refresh").click()
-    expect(page.locator("#waffle > .cell")).to_have_count(63)
+    expect(page.locator(".kanban-card")).to_have_count(2)
+    expect(page.locator(".kanban-column")).to_have_count(4)
+    expect(page.locator("#epic-chart")).not_to_be_visible()
+    for width in [320, 390, 768, 1440]:
+        page.set_viewport_size({"width": width, "height": 1000})
+        assert page.evaluate(
+            "document.documentElement.scrollWidth <= innerWidth",
+        )
     page.locator(".epic-card .title-button").filter(
         has_text="Compatibility",
     ).click()
     expect(page.locator("#waffle > .cell")).to_have_count(62)
+    expect(page.locator("#epic-chart")).to_be_visible()
     expect(page.locator("#waffle > .task-boundaries > path")).to_have_count(2)
     first_cell = page.locator('.cell[data-group="' + first + '"]').first
     first_cell.hover()
@@ -176,4 +184,134 @@ def test_flat_hover_contours_responsive_layout_and_safe_titles(
     expect(page.locator("#task-list")).to_contain_text(unsafe_title)
     assert page.locator("#task-list img").count() == 0
     assert page.evaluate("window.eonarqInjected") is None
+    assert not errors
+
+
+def set_status(page: Page, task_id: str, status: str) -> None:
+    task = page.request.get("/api/planning/q/tasks/" + task_id).json()
+    response = page.request.post(
+        "/api/planning/c/update",
+        data={
+            "task_id": task_id,
+            "expected_version": task["version"],
+            "status": status,
+        },
+    )
+    assert response.status == 200, response.text()
+
+
+def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    first = create(page, "Plan interface", "epic")["task_id"]
+    active = create(page, "Implement flow", "epic")["task_id"]
+    blocked = create(page, "Waiting on review", "epic")["task_id"]
+    done = create(page, "Released", "epic")["task_id"]
+    guarded = create(page, "Open work", "epic")["task_id"]
+    master = create(page, "Open master", "master", guarded)["task_id"]
+    set_status(page, active, "in_progress")
+    set_status(page, blocked, "blocked")
+    set_status(page, done, "done")
+    page.locator("#refresh").click()
+    expect(page.locator(".kanban-card")).to_have_count(5)
+    expect(page.locator("#metric-masters")).to_have_text("1 / 5")
+    expect(page.locator("#metric-wip")).to_have_text("2")
+    expect(page.locator("#metric-blocked")).to_have_text("1")
+    expect(page.locator("#metric-percent")).to_have_text("20%")
+    expect(page.locator("#metric-closed-label")).to_have_text("epics closed")
+
+    def card(task_id: str, status: str) -> str:
+        return (
+            '.kanban-column[data-status="' + status + '"] '
+            '.kanban-card[data-task="' + task_id + '"]'
+        )
+
+    page.locator(card(first, "todo") + " .drag-handle").drag_to(
+        page.locator(
+            '.kanban-column[data-status="in_progress"] .kanban-cards',
+        ),
+    )
+    expect(page.locator(card(first, "in_progress"))).to_be_visible()
+    expect(page.locator("#metric-wip")).to_have_text("3")
+    status_menu = page.get_by_label("Status for Implement flow", exact=True)
+    status_menu.focus()
+    status_menu.press("End")
+    expect(page.locator(card(active, "done"))).to_be_visible()
+    expect(page.locator("#metric-masters")).to_have_text("2 / 5")
+    expect(page.locator("#metric-percent")).to_have_text("40%")
+    expect(page.locator("#metric-wip")).to_have_text("2")
+    page.locator(card(guarded, "todo") + " .drag-handle").drag_to(
+        page.locator('.kanban-column[data-status="done"] .kanban-cards'),
+    )
+    expect(page.locator("#toast")).to_contain_text("Complete every child")
+    expect(page.locator(card(guarded, "todo"))).to_be_visible()
+    expect(page.locator(card(guarded, "done"))).to_have_count(0)
+    expect(page.locator("#metric-masters")).to_have_text("2 / 5")
+    page.get_by_label("Status for Plan interface", exact=True).select_option(
+        "blocked",
+    )
+    expect(page.locator(card(first, "blocked"))).to_be_visible()
+    expect(page.locator("#metric-blocked")).to_have_text("2")
+    page.reload()
+    expect(page.locator(card(first, "blocked"))).to_be_visible()
+    expect(page.locator(card(active, "done"))).to_be_visible()
+    set_status(page, active, "todo")
+    expect(page.locator(card(active, "todo"))).to_be_visible(timeout=10000)
+    expect(page.locator("#metric-masters")).to_have_text("1 / 5")
+    page.locator(card(guarded, "todo") + " .title-button").click()
+    expect(page.locator("#epic-chart")).to_be_visible()
+    expect(page.locator(".kanban-column")).to_have_count(0)
+    expect(page.locator("#waffle > .cell")).to_have_count(1)
+    expect(page.locator("#metric-masters")).to_have_text("0 / 1")
+    set_status(page, master, "blocked")
+    page.locator("#refresh").click()
+    expect(page.locator("#metric-wip")).to_have_text("1")
+    expect(page.locator("#metric-blocked")).to_have_text("1")
+    expect(page.locator("#metric-blocked-label")).to_have_text(
+        "blocked master tasks",
+    )
+    page.locator("#overview").click()
+    expect(page.locator("#epic-chart")).not_to_be_visible()
+    expect(page.locator("#metric-blocked")).to_have_text("2")
+    out = Path(".misc/browser")
+    out.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(out / "agile-board.png"), full_page=True)
+    page.emulate_media(color_scheme="dark")
+    page.screenshot(
+        path=str(out / "agile-board-dark.png"),
+        full_page=True,
+        animations="disabled",
+    )
+    browser = page.context.browser
+    assert browser is not None
+    mobile_context = browser.new_context(
+        viewport={"width": 390, "height": 900},
+        is_mobile=True,
+        has_touch=True,
+    )
+    try:
+        mobile = mobile_context.new_page()
+        mobile.on("pageerror", lambda error: errors.append(str(error)))
+        mobile.goto(page.url)
+        expect(mobile.locator(".kanban-card")).to_have_count(5)
+        mobile.get_by_label(
+            "Status for Implement flow",
+            exact=True,
+        ).select_option("in_progress")
+        expect(mobile.locator(card(active, "in_progress"))).to_be_visible()
+        expect(mobile.locator("#metric-wip")).to_have_text("3")
+        assert mobile.evaluate(
+            "document.documentElement.scrollWidth <= innerWidth",
+        )
+        mobile.screenshot(
+            path=str(out / "agile-board-mobile.png"),
+            full_page=True,
+        )
+        mobile.locator(card(guarded, "todo") + " .title-button").click()
+        expect(mobile.locator("#epic-chart")).to_be_visible()
+        expect(mobile.locator("#waffle > .cell")).to_have_count(1)
+        mobile.locator("#overview").click()
+        expect(mobile.locator(".kanban-column")).to_have_count(4)
+    finally:
+        mobile_context.close()
     assert not errors

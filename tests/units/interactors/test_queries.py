@@ -19,6 +19,8 @@ def test_empty_board(store: MemoryStore) -> None:
     result = GetBoard(MemoryTaskReader(store)).execute(BoardInput())
     assert (result.done, result.total, result.percent) == (0, 0, 0)
     assert result.tasks == result.cells == ()
+    assert result.flow.total == result.flow.wip == result.flow.blocked == 0
+    assert result.flow.completion_percent == 0
 
 
 def test_progress_counts_leaves_and_keeps_parent_completion_explicit(
@@ -110,3 +112,48 @@ def test_query_ids_are_validated_without_transport(store: MemoryStore) -> None:
         GetBoard(MemoryTaskReader(store)).execute(
             BoardInput(cast("UUID", "bad")),
         )
+
+
+def test_agile_metrics_count_epics_and_direct_children_separately(
+    store: MemoryStore,
+) -> None:
+    create = CreateTask(store, store, store)
+    epics = []
+    for status in TaskStatus:
+        identity = create.execute(
+            CreateTaskInput(status.value, TaskKind.EPIC),
+        ).task_id
+        epic = store.load(identity)
+        epic.status = status
+        epics.append(epic)
+    master = store.load(
+        create.execute(
+            CreateTaskInput("Blocked master", TaskKind.MASTER, epics[0].id),
+        ).task_id,
+    )
+    master.status = TaskStatus.BLOCKED
+    child = store.load(
+        create.execute(
+            CreateTaskInput("Child", TaskKind.SUBTASK, master.id),
+        ).task_id,
+    )
+    child.status = TaskStatus.IN_PROGRESS
+    board = GetBoard(MemoryTaskReader(store))
+    overview = board.execute(BoardInput())
+    assert overview.flow.total == 4
+    assert overview.flow.todo == overview.flow.in_progress == 1
+    assert overview.flow.blocked == overview.flow.done == 1
+    assert overview.flow.wip == 2
+    assert overview.flow.completion_percent == 25
+    scoped = board.execute(BoardInput(epics[0].id))
+    assert scoped.flow.total == scoped.flow.blocked == scoped.flow.wip == 1
+    assert scoped.flow.todo == scoped.flow.in_progress == scoped.flow.done == 0
+    epic_summary = next(
+        task for task in overview.tasks if task.id == epics[0].id
+    )
+    assert epic_summary.flow == scoped.flow
+    master_summary = next(
+        task for task in scoped.tasks if task.id == master.id
+    )
+    assert master_summary.flow.in_progress == 1
+    assert master_summary.flow.blocked == 0

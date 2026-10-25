@@ -130,6 +130,9 @@ def test_real_mcp_protocol_shared_api_and_restart(
             )
             assert board["total"] == 2
             assert board["done"] == 1
+            assert board["flow"]["total"] == 2
+            assert board["flow"]["todo"] == 2
+            assert board["flow"]["wip"] == 0
             prompts = await session.list_prompts()
             assert [prompt.name for prompt in prompts.prompts] == [
                 "work_on_task",

@@ -26,9 +26,11 @@
       <div class="metrics" aria-label="Progress summary">
         <div class="metric"><strong id="metric-percent">0%</strong><span>task progress</span></div>
         <div class="metric"><strong id="metric-leaves">0 / 0</strong><span>leaf tasks complete</span></div>
-        <div class="metric"><strong id="metric-masters">0 / 0</strong><span>master tasks closed</span></div>
+        <div class="metric"><strong id="metric-masters">0 / 0</strong><span id="metric-closed-label">epics closed</span></div>
+        <div class="metric"><strong id="metric-wip">0</strong><span id="metric-wip-label">work in progress</span><small id="metric-wip-note">In progress + blocked epics</small></div>
+        <div class="metric"><strong id="metric-blocked">0</strong><span id="metric-blocked-label">blocked epics</span></div>
       </div>
-      <section class="panel chart-panel" aria-labelledby="chart-title">
+      <section class="panel chart-panel" id="epic-chart" aria-labelledby="chart-title" hidden>
         <div class="panel-heading"><h2 id="chart-title">Task progress</h2><div class="legend"><span><i class="swatch done"></i>Done</span><span><i class="swatch"></i>Open</span></div></div>
         <div class="chart-padding"><div class="waffle" id="waffle" role="group" aria-label="Task progress squares"></div></div>
         <output id="cell-hint" class="cell-hint" aria-live="polite">Create an epic to start your plan.</output>
@@ -36,8 +38,9 @@
         <div id="group-legend" class="group-legend"></div>
       </section>
       <section aria-labelledby="tasks-title" class="tasks-section">
-        <div class="section-heading"><h2 id="tasks-title">Epics</h2><span class="muted" id="tasks-count"></span></div>
-        <div id="task-list"></div>
+        <div class="section-heading"><h2 id="tasks-title">Agile board</h2><span class="muted" id="tasks-count"></span></div>
+        <p class="board-hint" id="board-hint">Move epics between columns, or choose a status on the card. Open an epic to see its progress diagram.</p>
+        <div class="board-viewport" id="board-viewport" role="region" aria-label="Agile board" tabindex="0"><div id="task-list"></div></div>
       </section>
       <footer class="workspace-footer">Prompts stay editable. Progress counts completed leaf tasks; parent tasks are closed explicitly.</footer>
     </main>

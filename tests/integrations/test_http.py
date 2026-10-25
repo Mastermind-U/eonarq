@@ -221,3 +221,50 @@ def test_local_shell_schema_and_origin_boundary(client: TestClient) -> None:
         ).status_code
         == 201
     )
+
+
+def test_agile_metrics_follow_commands_and_scope(client: TestClient) -> None:
+    epic = create(client, "Epic", "epic")
+    other = create(client, "Other", "epic")
+    master = create(client, "Master", "master", epic["task_id"])
+    changed = client.post(
+        "/api/planning/c/update",
+        json={
+            "task_id": other["task_id"],
+            "expected_version": 1,
+            "status": "blocked",
+        },
+    )
+    assert changed.status_code == 200
+    overview = client.get("/api/planning/q/board").json()
+    assert overview["flow"] == {
+        "total": 2,
+        "todo": 1,
+        "in_progress": 0,
+        "blocked": 1,
+        "done": 0,
+        "wip": 1,
+        "completion_percent": 0,
+    }
+    scoped = client.get(
+        "/api/planning/q/board",
+        params={"epic_id": epic["task_id"]},
+    ).json()
+    assert scoped["flow"]["total"] == scoped["flow"]["todo"] == 1
+    assert scoped["flow"]["blocked"] == 0
+    response = client.post(
+        "/api/planning/c/update",
+        json={
+            "task_id": master["task_id"],
+            "expected_version": 1,
+            "status": "done",
+        },
+    )
+    assert response.status_code == 200
+    fresh = client.get(
+        "/api/planning/q/board",
+        params={"epic_id": epic["task_id"]},
+    ).json()
+    assert fresh["flow"]["done"] == 1
+    assert fresh["flow"]["completion_percent"] == 100
+    assert client.get("/api/planning/q/board").json()["flow"]["done"] == 0

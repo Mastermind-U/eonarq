@@ -12,8 +12,9 @@ The web interface and MCP tools share one SQLite database and the same applicati
 
 - Create, edit, reorder, move and delete tasks through MCP or the HTTP API.
 - Create, edit, complete and delete tasks in the web interface. Edit Markdown prompts at every level.
-- View all epics or open an epic to work on its master tasks and subtasks.
-- Progress is one compact field of squares. Hover or focus a square to outline its epic on the overview, or its master task inside an epic. Click a square to edit its task and prompt.
+- The overview is an agile board with To do, In progress, Blocked and Done columns. Drag an epic by its handle to change its status, or use its status menu with a keyboard or touch screen.
+- Open an epic to see its progress diagram, master tasks and subtasks. Progress is one compact field of squares; hover or focus a square to outline its master task. Click a square to edit its task and prompt.
+- Metrics show leaf-task progress, closed epics/master tasks, work in progress and blocked work. The overview counts epics; an epic page counts its direct master tasks. WIP includes both in-progress and blocked cards.
 - MCP can load the selected prompt together with its current epic/master context. Changes made in the browser are immediately available to agents; the browser refreshes external changes every five seconds while the editor is closed.
 
 ## Run with Docker (recommended)
@@ -163,6 +164,7 @@ uv run eonarq
 - States: `todo`, `in_progress`, `blocked`, `done`.
 - A square represents a leaf: a subtask, or a master/epic that has no children. Each leaf has equal weight; progress measures completed leaves, not effort.
 - Closing the last child does not automatically close its parent. A parent can be marked done only when every immediate child is done.
+- Board moves use the same version checks and completion rules as HTTP/MCP commands. A rejected move keeps the card in its saved column and shows the reason.
 - Adding an open child or reopening/moving an open descendant reopens completed ancestors as `in_progress`.
 - Mutations require the current `expected_version`. A stale edit returns HTTP 409 or an MCP tool error, without overwriting newer data. On conflict, reload the task and reapply the intended change.
 - Order is a nonnegative integer, then stable UUID order. Titles contain 1–200 characters; prompts contain up to 200,000 characters.
@@ -173,7 +175,7 @@ uv run eonarq
 | Tool | Purpose |
 | --- | --- |
 | `list_epics` | Epic summaries and progress |
-| `get_board(epic_id?)` | Task hierarchy, versions and progress squares |
+| `get_board(epic_id?)` | Task hierarchy, versions, progress squares and flow metrics |
 | `get_task(task_id)` | Full task with editable prompt and current version |
 | `get_task_prompt(task_id)` | Inherited epic/master/subtask context |
 | `create_task(title, kind, parent_id?, prompt?, position?)` | Create work at the correct level |
@@ -188,6 +190,8 @@ Example: call `create_task` with `{"title":"Make ToDo app","kind":"epic","prompt
 ## HTTP API
 
 All payloads/responses and validation schemas are in `/docs`.
+
+Board responses include `flow` counters (`total`, `todo`, `in_progress`, `blocked`, `done`, `wip`, `completion_percent`). An unscoped board summarizes epics; `epic_id` scopes the counters to that epic's master tasks. Each task also exposes `flow` for its immediate children. These counters describe explicit task statuses; leaf completion remains a separate progress measure.
 
 | Method | Path | Input |
 | --- | --- | --- |
