@@ -11,6 +11,7 @@ def summarize_flow(tasks: Sequence[TaskRecord]) -> FlowMetricsData:
     done = counts[TaskStatus.DONE]
     in_progress = counts[TaskStatus.IN_PROGRESS]
     blocked = counts[TaskStatus.BLOCKED]
+    active = len(tasks) - counts[TaskStatus.CANCELLED]
     return FlowMetricsData(
         total=len(tasks),
         todo=counts[TaskStatus.TODO],
@@ -18,5 +19,6 @@ def summarize_flow(tasks: Sequence[TaskRecord]) -> FlowMetricsData:
         blocked=blocked,
         done=done,
         wip=in_progress + blocked,
-        completion_percent=round(done / len(tasks) * 100, 1) if tasks else 0,
+        completion_percent=round(done / active * 100, 1) if active else 0,
+        cancelled=counts[TaskStatus.CANCELLED],
     )

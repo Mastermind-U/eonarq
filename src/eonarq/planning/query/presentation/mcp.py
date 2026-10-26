@@ -9,8 +9,13 @@ from mcp.types import ToolAnnotations
 
 from eonarq.planning.common.domain.types import TaskKind
 from eonarq.planning.query.application.board import GetBoard
-from eonarq.planning.query.application.dtos import BoardInput, TaskInput
+from eonarq.planning.query.application.dtos import (
+    BoardInput,
+    ProjectsInput,
+    TaskInput,
+)
 from eonarq.planning.query.application.get import GetTask
+from eonarq.planning.query.application.projects import ListProjects
 from eonarq.planning.query.application.prompt import GetTaskPrompt
 from eonarq.shared_kernel.presentation.mcp import run_in_request
 
@@ -24,27 +29,45 @@ def register_query_tools(server: FastMCP, container: Container) -> None:
     )
 
     @server.tool(annotations=readonly)
-    async def list_epics() -> list[dict[str, Any]]:
+    async def list_epics(
+        project_id: UUID | None = None,
+    ) -> list[dict[str, Any]]:
         """List epic titles, versions, statuses and leaf-task progress."""
         board = await run_in_request(
             container,
-            lambda scope: scope.get(GetBoard).execute(BoardInput()),
+            lambda scope: scope.get(GetBoard).execute(
+                BoardInput(project_id=project_id),
+            ),
         )
         return [
             asdict(task) for task in board.tasks if task.kind == TaskKind.EPIC
         ]
 
     @server.tool(annotations=readonly)
-    async def get_board(epic_id: UUID | None = None) -> dict[str, Any]:
+    async def get_board(
+        epic_id: UUID | None = None,
+        project_id: UUID | None = None,
+    ) -> dict[str, Any]:
         """Read the task tree and progress, optionally for one epic.
 
         Retrieve editable prompts separately with get_task.
         """
         result = await run_in_request(
             container,
-            lambda scope: scope.get(GetBoard).execute(BoardInput(epic_id)),
+            lambda scope: scope.get(GetBoard).execute(
+                BoardInput(epic_id, project_id),
+            ),
         )
         return asdict(result)
+
+    @server.tool(annotations=readonly)
+    async def list_projects() -> list[dict[str, Any]]:
+        """List project IDs, editable shared prompts and current versions."""
+        projects = await run_in_request(
+            container,
+            lambda scope: scope.get(ListProjects).execute(ProjectsInput()),
+        )
+        return [asdict(project) for project in projects]
 
     @server.tool(annotations=readonly)
     async def get_task(task_id: UUID) -> dict[str, Any]:

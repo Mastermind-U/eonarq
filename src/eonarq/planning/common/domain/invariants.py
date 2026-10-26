@@ -1,5 +1,9 @@
 from eonarq.planning.common.domain.exceptions import InvalidTask
-from eonarq.planning.common.domain.types import TaskKind, TaskStatus
+from eonarq.planning.common.domain.types import (
+    TaskAction,
+    TaskKind,
+    TaskStatus,
+)
 
 
 def ensure_text(title: str, prompt: str) -> None:
@@ -19,6 +23,11 @@ def ensure_position(position: int) -> None:
 def ensure_status(status: TaskStatus) -> None:
     if not isinstance(status, TaskStatus):
         raise InvalidTask("Unknown task status")
+
+
+def ensure_action(action: TaskAction) -> None:
+    if not isinstance(action, TaskAction):
+        raise InvalidTask("Unknown task action")
 
 
 def ensure_parent(kind: TaskKind, parent_kind: TaskKind | None) -> None:

@@ -51,16 +51,26 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 "update_task",
                 "move_task",
                 "delete_task",
+                "create_project",
+                "update_project",
+                "list_projects",
+                "clear_cancelled",
             }
             assert tools["get_board"].annotations is not None
             assert tools["delete_task"].annotations is not None
             assert tools["get_board"].annotations.readOnlyHint is True
             assert tools["delete_task"].annotations.destructiveHint is True
+            project = await call(
+                session,
+                "create_project",
+                {"title": "MCP project", "prompt": "Project instructions"},
+            )
             epic = await call(
                 session,
                 "create_task",
                 {
                     "title": "MCP epic",
+                    "project_id": project["project_id"],
                     "kind": "epic",
                     "prompt": "Epic instructions",
                 },
@@ -101,6 +111,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                     "expected_version": 1,
                     "prompt": "Edited via MCP",
                     "status": "done",
+                    "action": "CHECK",
                 },
             )
             assert changed["version"] == 2
@@ -120,6 +131,8 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 {"task_id": child["task_id"]},
             )
             assert current["prompt"] == "Edited via MCP"
+            assert current["action"] == "CHECK"
+            assert current["project_id"] == project["project_id"]
             assert current["parent_id"] == other["task_id"]
             epics = await call(session, "list_epics")
             assert epics["result"][0]["id"] == epic["task_id"]
@@ -209,6 +222,71 @@ def test_real_mcp_protocol_shared_api_and_restart(
                     "expected_version": latest["version"],
                 },
             )
+            discarded = await call(
+                session,
+                "create_task",
+                {
+                    "title": "Discard",
+                    "kind": "master",
+                    "parent_id": epic["task_id"],
+                    "action": "RESEARCH",
+                },
+            )
+            discard_child = await call(
+                session,
+                "create_task",
+                {
+                    "title": "Discard child",
+                    "kind": "subtask",
+                    "parent_id": discarded["task_id"],
+                },
+            )
+            discard_latest = await call(
+                session,
+                "get_task",
+                {"task_id": discarded["task_id"]},
+            )
+            await call(
+                session,
+                "update_task",
+                {
+                    "task_id": discarded["task_id"],
+                    "expected_version": discard_latest["version"],
+                    "status": "cancelled",
+                },
+            )
+            assert (
+                await call(
+                    session,
+                    "get_task",
+                    {"task_id": discard_child["task_id"]},
+                )
+            )["status"] == "cancelled"
+            cleared = await call(
+                session,
+                "clear_cancelled",
+                {"project_id": project["project_id"]},
+            )
+            assert cleared["deleted"] == 2
+            assert (
+                await call(
+                    session,
+                    "get_board",
+                    {"project_id": project["project_id"]},
+                )
+            )["flow"]["cancelled"] == 0
+            await call(
+                session,
+                "update_project",
+                {
+                    "project_id": project["project_id"],
+                    "expected_version": 1,
+                    "prompt": "Updated project context",
+                },
+            )
+            assert (await call(session, "list_projects"))["result"][0][
+                "prompt"
+            ] == "Updated project context"
             return child["task_id"]
 
     with running_server(config.DATABASE_URL, tmp_path / "first.log") as url:
@@ -220,3 +298,8 @@ def test_real_mcp_protocol_shared_api_and_restart(
         task = http.get("/api/planning/q/tasks/" + task_id).json()
         assert task["prompt"] == "Edited via HTTP"
         assert task["version"] == 4
+        assert task["action"] == "CHECK"
+        prompt = http.get(
+            "/api/planning/q/tasks/" + task_id + "/prompt",
+        ).json()["content"]
+        assert "Updated project context" in prompt

@@ -23,4 +23,6 @@ class GetTask:
             task.version,
             task.created_at,
             task.updated_at,
+            task.project_id,
+            task.action,
         )

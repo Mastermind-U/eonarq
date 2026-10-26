@@ -31,11 +31,22 @@ class MoveTask:
                 raise InvalidTask("Hierarchy does not allow moving an epic")
             parent = self.repository.load(data.parent_id)
             ensure_parent(task.kind, parent.kind)
+            if task.project_id != parent.project_id:
+                raise InvalidTask(
+                    "Moving tasks across projects is not allowed",
+                )
             if task.parent_id != parent.id:
                 self.repository.load(old_parent_id).touch()
                 task.parent_id = parent.id
                 parent.touch()
-                if task.status != TaskStatus.DONE:
+                if (
+                    parent.status == TaskStatus.CANCELLED
+                    or task.status
+                    not in (
+                        TaskStatus.DONE,
+                        TaskStatus.CANCELLED,
+                    )
+                ):
                     parent.reopen()
                     reopen_ancestors(parent, self.repository)
             task.touch()

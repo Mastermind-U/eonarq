@@ -31,4 +31,8 @@ def container(config: Config) -> Iterator[Container]:
 @pytest.fixture
 def client(config: Config) -> Iterator[TestClient]:
     with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        client.post(
+            "/api/planning/c/projects/create",
+            json={"title": "Test project"},
+        ).raise_for_status()
         yield client

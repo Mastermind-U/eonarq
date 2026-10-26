@@ -29,6 +29,14 @@ def page(tmp_path: Path) -> Iterator[Page]:
         try:
             page.goto(url)
             expect(page.locator("#task-list")).to_contain_text(
+                "Create your first project",
+            )
+            page.request.post(
+                "/api/planning/c/projects/create",
+                data={"title": "Test project"},
+            )
+            page.locator("#refresh").click()
+            expect(page.locator("#task-list")).to_contain_text(
                 "Create your first epic",
             )
             yield page
@@ -52,7 +60,12 @@ def create(
 ) -> dict[str, Any]:
     response = page.request.post(
         "/api/planning/c/create",
-        data={"title": title, "kind": kind, "parent_id": parent_id},
+        data={
+            "title": title,
+            "kind": kind,
+            "parent_id": parent_id,
+            "project_id": page.locator("#project-select").input_value(),
+        },
     )
     assert response.status == 201
     return response.json()
@@ -122,8 +135,8 @@ def test_flat_hover_contours_responsive_layout_and_safe_titles(
     unsafe_title = '<img src=x onerror="window.eonarqInjected=true">'
     create(page, unsafe_title, "master", other_epic)
     page.locator("#refresh").click()
-    expect(page.locator(".kanban-card")).to_have_count(2)
-    expect(page.locator(".kanban-column")).to_have_count(4)
+    expect(page.locator(".kanban-card")).to_have_count(67)
+    expect(page.locator(".kanban-column")).to_have_count(5)
     expect(page.locator("#epic-chart")).not_to_be_visible()
     for width in [320, 390, 768, 1440]:
         page.set_viewport_size({"width": width, "height": 1000})
@@ -213,12 +226,12 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
     set_status(page, blocked, "blocked")
     set_status(page, done, "done")
     page.locator("#refresh").click()
-    expect(page.locator(".kanban-card")).to_have_count(5)
-    expect(page.locator("#metric-masters")).to_have_text("1 / 5")
+    expect(page.locator(".kanban-card")).to_have_count(6)
+    expect(page.locator("#metric-masters")).to_have_text("1 / 6")
     expect(page.locator("#metric-wip")).to_have_text("2")
     expect(page.locator("#metric-blocked")).to_have_text("1")
     expect(page.locator("#metric-percent")).to_have_text("20%")
-    expect(page.locator("#metric-closed-label")).to_have_text("epics closed")
+    expect(page.locator("#metric-closed-label")).to_have_text("tasks closed")
 
     def card(task_id: str, status: str) -> str:
         return (
@@ -236,8 +249,10 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
     status_menu = page.get_by_label("Status for Implement flow", exact=True)
     status_menu.focus()
     status_menu.press("End")
+    expect(page.locator(card(active, "cancelled"))).to_be_visible()
+    status_menu.press("ArrowUp")
     expect(page.locator(card(active, "done"))).to_be_visible()
-    expect(page.locator("#metric-masters")).to_have_text("2 / 5")
+    expect(page.locator("#metric-masters")).to_have_text("2 / 6")
     expect(page.locator("#metric-percent")).to_have_text("40%")
     expect(page.locator("#metric-wip")).to_have_text("2")
     page.locator(card(guarded, "todo") + " .drag-handle").drag_to(
@@ -246,7 +261,7 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
     expect(page.locator("#toast")).to_contain_text("Complete every child")
     expect(page.locator(card(guarded, "todo"))).to_be_visible()
     expect(page.locator(card(guarded, "done"))).to_have_count(0)
-    expect(page.locator("#metric-masters")).to_have_text("2 / 5")
+    expect(page.locator("#metric-masters")).to_have_text("2 / 6")
     page.get_by_label("Status for Plan interface", exact=True).select_option(
         "blocked",
     )
@@ -257,7 +272,7 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
     expect(page.locator(card(active, "done"))).to_be_visible()
     set_status(page, active, "todo")
     expect(page.locator(card(active, "todo"))).to_be_visible(timeout=10000)
-    expect(page.locator("#metric-masters")).to_have_text("1 / 5")
+    expect(page.locator("#metric-masters")).to_have_text("1 / 6")
     page.locator(card(guarded, "todo") + " .title-button").click()
     expect(page.locator("#epic-chart")).to_be_visible()
     expect(page.locator(".kanban-column")).to_have_count(0)
@@ -272,7 +287,7 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
     )
     page.locator("#overview").click()
     expect(page.locator("#epic-chart")).not_to_be_visible()
-    expect(page.locator("#metric-blocked")).to_have_text("2")
+    expect(page.locator("#metric-blocked")).to_have_text("3")
     out = Path(".misc/browser")
     out.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(out / "agile-board.png"), full_page=True)
@@ -293,13 +308,13 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
         mobile = mobile_context.new_page()
         mobile.on("pageerror", lambda error: errors.append(str(error)))
         mobile.goto(page.url)
-        expect(mobile.locator(".kanban-card")).to_have_count(5)
+        expect(mobile.locator(".kanban-card")).to_have_count(6)
         mobile.get_by_label(
             "Status for Implement flow",
             exact=True,
         ).select_option("in_progress")
         expect(mobile.locator(card(active, "in_progress"))).to_be_visible()
-        expect(mobile.locator("#metric-wip")).to_have_text("3")
+        expect(mobile.locator("#metric-wip")).to_have_text("4")
         assert mobile.evaluate(
             "document.documentElement.scrollWidth <= innerWidth",
         )
@@ -311,7 +326,7 @@ def test_agile_drag_keyboard_metrics_and_epic_navigation(page: Page) -> None:
         expect(mobile.locator("#epic-chart")).to_be_visible()
         expect(mobile.locator("#waffle > .cell")).to_have_count(1)
         mobile.locator("#overview").click()
-        expect(mobile.locator(".kanban-column")).to_have_count(4)
+        expect(mobile.locator(".kanban-column")).to_have_count(5)
     finally:
         mobile_context.close()
     assert not errors

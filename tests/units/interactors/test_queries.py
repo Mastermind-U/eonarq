@@ -54,7 +54,12 @@ def test_empty_tasks_are_leaves_and_epic_scope_isolated(
 ) -> None:
     epic = tree[0]
     other = CreateTask(store, store, store).execute(
-        CreateTaskInput("Empty", TaskKind.EPIC, position=1),
+        CreateTaskInput(
+            "Empty",
+            TaskKind.EPIC,
+            position=1,
+            project_id=store.project.id,
+        ),
     )
     reader = GetBoard(MemoryTaskReader(store))
     assert reader.execute(BoardInput()).total == 2
@@ -121,7 +126,11 @@ def test_agile_metrics_count_epics_and_direct_children_separately(
     epics = []
     for status in TaskStatus:
         identity = create.execute(
-            CreateTaskInput(status.value, TaskKind.EPIC),
+            CreateTaskInput(
+                status.value,
+                TaskKind.EPIC,
+                project_id=store.project.id,
+            ),
         ).task_id
         epic = store.load(identity)
         epic.status = status
@@ -140,7 +149,8 @@ def test_agile_metrics_count_epics_and_direct_children_separately(
     child.status = TaskStatus.IN_PROGRESS
     board = GetBoard(MemoryTaskReader(store))
     overview = board.execute(BoardInput())
-    assert overview.flow.total == 4
+    assert overview.flow.total == 5
+    assert overview.flow.cancelled == 1
     assert overview.flow.todo == overview.flow.in_progress == 1
     assert overview.flow.blocked == overview.flow.done == 1
     assert overview.flow.wip == 2

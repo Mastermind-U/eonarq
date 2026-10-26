@@ -6,17 +6,27 @@ from dishka import Container
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from eonarq.planning.command.application.clear_cancelled import ClearCancelled
 from eonarq.planning.command.application.create import CreateTask
+from eonarq.planning.command.application.create_project import CreateProject
 from eonarq.planning.command.application.delete import DeleteTask
 from eonarq.planning.command.application.dtos import (
+    ClearCancelledInput,
+    CreateProjectInput,
     CreateTaskInput,
     DeleteTaskInput,
     MoveTaskInput,
+    UpdateProjectInput,
     UpdateTaskInput,
 )
 from eonarq.planning.command.application.move import MoveTask
 from eonarq.planning.command.application.update import UpdateTask
-from eonarq.planning.common.domain.types import TaskKind, TaskStatus
+from eonarq.planning.command.application.update_project import UpdateProject
+from eonarq.planning.common.domain.types import (
+    TaskAction,
+    TaskKind,
+    TaskStatus,
+)
 from eonarq.shared_kernel.presentation.mcp import run_in_request
 
 
@@ -35,13 +45,23 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
         parent_id: UUID | None = None,
         prompt: str = "",
         position: int = 0,
+        project_id: UUID | None = None,
+        action: TaskAction = TaskAction.ACTION,
     ) -> dict[str, Any]:
         """Create a task in the three-level hierarchy.
 
         An epic has master tasks; a master has subtasks.
         Prompts are editable Markdown text.
         """
-        data = CreateTaskInput(title, kind, parent_id, prompt, position)
+        data = CreateTaskInput(
+            title,
+            kind,
+            parent_id,
+            prompt,
+            position,
+            project_id,
+            action,
+        )
         return await run_in_request(
             container,
             lambda scope: asdict(scope.get(CreateTask).execute(data)),
@@ -62,6 +82,7 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
         prompt: str | None = None,
         status: TaskStatus | None = None,
         position: int | None = None,
+        action: TaskAction | None = None,
     ) -> dict[str, Any]:
         """Edit a task or its prompt.
 
@@ -75,6 +96,7 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
             prompt,
             status,
             position,
+            action,
         )
         return await run_in_request(
             container,
@@ -125,4 +147,57 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
         return await run_in_request(
             container,
             lambda scope: asdict(scope.get(DeleteTask).execute(data)),
+        )
+
+    @server.tool(annotations=mutation)
+    async def create_project(title: str, prompt: str = "") -> dict[str, Any]:
+        """Create a project. Use its ID when creating epics."""
+        return await run_in_request(
+            container,
+            lambda scope: asdict(
+                scope.get(CreateProject).execute(
+                    CreateProjectInput(title, prompt),
+                ),
+            ),
+        )
+
+    @server.tool(annotations=mutation)
+    async def update_project(
+        project_id: UUID,
+        expected_version: int,
+        title: str | None = None,
+        prompt: str | None = None,
+    ) -> dict[str, Any]:
+        """Edit project instructions using the current version."""
+        return await run_in_request(
+            container,
+            lambda scope: asdict(
+                scope.get(UpdateProject).execute(
+                    UpdateProjectInput(
+                        project_id,
+                        expected_version,
+                        title,
+                        prompt,
+                    ),
+                ),
+            ),
+        )
+
+    @server.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def clear_cancelled(project_id: UUID) -> dict[str, Any]:
+        """Permanently remove all cancelled tasks in this project only."""
+        return await run_in_request(
+            container,
+            lambda scope: asdict(
+                scope.get(ClearCancelled).execute(
+                    ClearCancelledInput(project_id),
+                ),
+            ),
         )

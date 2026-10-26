@@ -1,4 +1,5 @@
 from typing import cast
+from uuid import UUID
 
 import pytest
 
@@ -52,7 +53,7 @@ def test_invalid_status_and_kind_are_rejected() -> None:
 
 
 def test_identity_normalization_versions_and_reopen() -> None:
-    task = Task("  Title  ", TaskKind.EPIC)
+    task = Task("  Title  ", TaskKind.EPIC, project_id=UUID(int=1))
     assert task.title == "Title"
     assert task.id.version == 7
     before = task.updated_at

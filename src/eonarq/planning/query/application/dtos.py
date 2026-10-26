@@ -2,12 +2,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from eonarq.planning.common.domain.types import TaskKind, TaskStatus
+from eonarq.planning.common.domain.types import (
+    TaskAction,
+    TaskKind,
+    TaskStatus,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class BoardInput:
     epic_id: UUID | None = None
+    project_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +29,7 @@ class FlowMetricsData:
     done: int
     wip: int
     completion_percent: float
+    cancelled: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +45,8 @@ class TaskData:
     total: int
     percent: float
     flow: FlowMetricsData
+    project_id: UUID
+    action: TaskAction
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +80,21 @@ class TaskOutput:
     version: int
     created_at: datetime
     updated_at: datetime
+    project_id: UUID
+    action: TaskAction
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectData:
+    id: UUID
+    title: str
+    prompt: str
+    version: int
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectsInput:
+    pass
 
 
 @dataclass(frozen=True, slots=True)

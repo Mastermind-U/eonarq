@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from eonarq.planning.command.application.common.hierarchy import (
     reopen_ancestors,
@@ -28,7 +29,7 @@ class UpdateTask:
             task = self.repository.load(data.task_id)
             task.ensure_version(data.expected_version)
             if data.status == TaskStatus.DONE and any(
-                child.status != TaskStatus.DONE
+                child.status not in (TaskStatus.DONE, TaskStatus.CANCELLED)
                 for child in self.repository.load_children(task.id)
             ):
                 raise TaskConflict(
@@ -40,13 +41,28 @@ class UpdateTask:
                 task.prompt = data.prompt
             if data.position is not None:
                 task.position = data.position
+            if data.action is not None:
+                task.action = data.action
             if data.status is not None:
                 task.status = data.status
             task.touch()
-            if task.status != TaskStatus.DONE:
-                reopen_ancestors(task, self.repository)
+            if data.status == TaskStatus.CANCELLED:
+                self._cancel_children(task.id)
+            if task.status != TaskStatus.CANCELLED:
+                reopen_ancestors(
+                    task,
+                    self.repository,
+                    cancelled_ancestors_only=task.status == TaskStatus.DONE,
+                )
             self.transaction.commit()
             return MutationOutput(task.id, task.version)
         except BaseException:
             self.transaction.rollback()
             raise
+
+    def _cancel_children(self, parent_id: UUID) -> None:
+        for child in self.repository.load_children(parent_id):
+            if child.status != TaskStatus.CANCELLED:
+                child.status = TaskStatus.CANCELLED
+                child.touch()
+            self._cancel_children(child.id)

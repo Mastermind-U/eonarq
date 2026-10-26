@@ -11,7 +11,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from eonarq.planning.command.application.create import CreateTask
+from eonarq.planning.command.application.create_project import CreateProject
 from eonarq.planning.command.application.dtos import (
+    CreateProjectInput,
     CreateTaskInput,
     UpdateTaskInput,
 )
@@ -34,9 +36,17 @@ from eonarq.shared_kernel.infrastructure.migrations import migrate
 
 def seed(container: Container) -> tuple[UUID, UUID, UUID]:
     with container() as scope:
+        project_id = (
+            scope.get(CreateProject)
+            .execute(CreateProjectInput("Test project"))
+            .project_id
+        )
+    with container() as scope:
         epic = (
             scope.get(CreateTask)
-            .execute(CreateTaskInput("Epic", TaskKind.EPIC))
+            .execute(
+                CreateTaskInput("Epic", TaskKind.EPIC, project_id=project_id),
+            )
             .task_id
         )
     with container() as scope:
@@ -105,9 +115,15 @@ def test_rollback_restores_loaded_entities(
 
 def test_new_entity_rollback_keeps_identity(container: Container) -> None:
     with container() as scope:
+        project_id = (
+            scope.get(CreateProject)
+            .execute(CreateProjectInput("Test project"))
+            .project_id
+        )
+    with container() as scope:
         transaction = scope.get(TransactionManager)
         transaction.begin()
-        task = Task("New", TaskKind.EPIC)
+        task = Task("New", TaskKind.EPIC, project_id=project_id)
         identity = task.id
         scope.get(EntitySaver).add(task)
         scope.get(Session).flush()
@@ -175,7 +191,9 @@ def test_migrations_upgrade_downgrade_and_schema(
     engine = container.get(Engine)
     with engine.connect() as connection:
         constraints = inspect(connection).get_foreign_keys("tasks")
-        assert constraints[0]["options"]["deferrable"] is True
+        assert any(
+            item["options"].get("deferrable") is True for item in constraints
+        )
         assert any(
             index["name"] == "ix_tasks_parent_position"
             for index in inspect(connection).get_indexes("tasks")
@@ -229,3 +247,43 @@ def test_closing_parent_and_adding_child_preserves_invariant(
             != TaskStatus.DONE
         )
         assert scope.get(GetBoard).execute(BoardInput()).total == 2
+
+
+def test_project_mapping_rollback_and_database_boundary(
+    container: Container,
+) -> None:
+    _, master, _ = seed(container)
+    with container() as scope:
+        project_id = (
+            scope.get(CreateProject)
+            .execute(CreateProjectInput("Other"))
+            .project_id
+        )
+    with container() as scope:
+        transaction = scope.get(TransactionManager)
+        transaction.begin()
+        project = scope.get(TaskRepository).load_project(project_id)
+        project.title = "Changed"
+        project.version += 1
+        scope.get(Session).flush()
+        transaction.rollback()
+        assert (project.title, project.version) == ("Other", 1)
+    with container() as scope:
+        transaction = scope.get(TransactionManager)
+        transaction.begin()
+        task = Task(
+            "Cross project",
+            TaskKind.SUBTASK,
+            parent_id=master,
+            project_id=project_id,
+        )
+        scope.get(EntitySaver).add(task)
+        with pytest.raises(IntegrityError):
+            transaction.commit()
+        transaction.rollback()
+    with container() as scope:
+        project = scope.get(TaskReader).load_project(project_id)
+        project.prompt = "Forbidden"
+        with pytest.raises(InvalidTask, match="read-only"):
+            scope.get(Session).commit()
+        scope.get(Session).rollback()

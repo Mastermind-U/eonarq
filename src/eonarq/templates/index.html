@@ -13,7 +13,12 @@
   <div class="app-shell">
     <aside class="sidebar" aria-label="Epic navigation">
       <a class="brand" href="/" aria-label="Eonarq overview"><span class="brand-mark">e</span>eonarq<span class="local-badge">LOCAL</span></a>
-      <button class="nav-overview" id="overview" type="button">All epics <span id="epic-count">0</span></button>
+      <div class="project-picker">
+        <div class="project-heading"><label for="project-select">PROJECT</label><button class="icon-button" id="new-project" type="button" aria-label="Create project">+</button></div>
+        <select id="project-select" aria-label="Project"></select>
+        <button class="task-edit" id="edit-project" type="button">Edit project</button>
+      </div>
+      <button class="nav-overview" id="overview" type="button">Project board <span id="epic-count">0</span></button>
       <div class="sidebar-heading"><span>EPICS</span><button class="icon-button" id="new-epic" type="button" aria-label="Create epic">+</button></div>
       <nav id="epic-nav" aria-label="Epics"></nav>
       <div class="sidebar-footer"><span class="local-dot"></span>Local workspace <span>v{{ version }}</span></div>
@@ -21,7 +26,7 @@
     <main class="workspace" id="main">
       <header class="page-header">
         <div><p class="eyebrow" id="breadcrumb">WORKSPACE / OVERVIEW</p><h1 id="page-title">Your work, in view.</h1><p class="intro" id="page-description">Epics, master tasks and the steps that move them forward.</p></div>
-        <div class="actions"><button class="button" id="refresh" type="button">Refresh</button><button class="button" id="edit-epic" type="button" hidden>Edit epic</button><button class="button primary" id="add-task" type="button">+ New epic</button></div>
+        <div class="actions"><button class="button" id="refresh" type="button">Refresh</button><button class="button danger" id="clear-cancelled" type="button" hidden>Clear cancelled</button><button class="button" id="edit-epic" type="button" hidden>Edit epic</button><button class="button primary" id="add-task" type="button">+ New epic</button></div>
       </header>
       <div class="metrics" aria-label="Progress summary">
         <div class="metric"><strong id="metric-percent">0%</strong><span>task progress</span></div>
@@ -38,8 +43,8 @@
         <div id="group-legend" class="group-legend"></div>
       </section>
       <section aria-labelledby="tasks-title" class="tasks-section">
-        <div class="section-heading"><h2 id="tasks-title">Agile board</h2><span class="muted" id="tasks-count"></span></div>
-        <p class="board-hint" id="board-hint">Move epics between columns, or choose a status on the card. Open an epic to see its progress diagram.</p>
+        <div class="section-heading"><h2 id="tasks-title">Agile board</h2><span class="muted" id="tasks-count"></span><label class="group-control" id="group-control"><input type="checkbox" id="group-epics">Group by epic</label></div>
+        <p class="board-hint" id="board-hint">All epics, master tasks and subtasks in this project. Move cards between columns or choose a status. Open an epic for its progress diagram.</p>
         <div class="board-viewport" id="board-viewport" role="region" aria-label="Agile board" tabindex="0"><div id="task-list"></div></div>
       </section>
       <footer class="workspace-footer">Prompts stay editable. Progress counts completed leaf tasks; parent tasks are closed explicitly.</footer>
@@ -50,10 +55,19 @@
     <form id="task-form">
       <div class="dialog-heading"><div><p class="eyebrow" id="dialog-kind">EPIC</p><h2 id="dialog-title">New epic</h2></div><button class="icon-button" id="close-dialog" type="button" aria-label="Close editor">×</button></div>
       <label class="field">Title<input name="title" id="task-title" required maxlength="200" autocomplete="off"></label>
-      <div class="field-row"><label class="field">Status<select name="status" id="task-status"><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></label><label class="field small-field">Order<input name="position" id="task-position" type="number" min="0" max="1000000" value="0" required></label></div>
+      <div class="field-row"><label class="field">Status<select name="status" id="task-status"><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="done">Done</option><option value="cancelled">Cancelled</option></select></label><label class="field">Action<select id="task-action"><option>RESEARCH</option><option selected>ACTION</option><option>CHECK</option></select></label><label class="field small-field">Order<input name="position" id="task-position" type="number" min="0" max="1000000" value="0" required></label></div>
       <label class="field">Prompt <span class="field-note">Markdown · inherited by child tasks through MCP</span><textarea name="prompt" id="task-prompt" rows="12" maxlength="200000" placeholder="Context, desired outcome and acceptance criteria…" spellcheck="false"></textarea></label>
       <p class="form-error" id="form-error" role="alert"></p>
       <div class="dialog-actions"><button class="button danger" id="delete-task" type="button" hidden>Delete task</button><span class="spacer"></span><button class="button" id="cancel-dialog" type="button">Cancel</button><button class="button primary" id="save-task" type="submit">Save task</button></div>
+    </form>
+  </dialog>
+  <dialog id="project-dialog" aria-labelledby="project-dialog-title">
+    <form id="project-form">
+      <div class="dialog-heading"><h2 id="project-dialog-title">New project</h2><button class="icon-button" id="close-project" type="button" aria-label="Close project editor">×</button></div>
+      <label class="field">Title<input id="project-title" required maxlength="200" autocomplete="off"></label>
+      <label class="field">Shared prompt<textarea id="project-prompt" rows="8" maxlength="200000" spellcheck="false" placeholder="Instructions inherited by every task in this project…"></textarea></label>
+      <p class="form-error" id="project-error" role="alert"></p>
+      <div class="dialog-actions"><span class="spacer"></span><button class="button" id="cancel-project" type="button">Cancel</button><button class="button primary" id="save-project" type="submit">Save project</button></div>
     </form>
   </dialog>
   <noscript>Enable JavaScript to use Eonarq. The HTTP API is available at /docs.</noscript>

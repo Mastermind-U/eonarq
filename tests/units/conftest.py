@@ -17,7 +17,12 @@ def tree(store: MemoryStore) -> tuple[Task, Task, Task]:
     create = CreateTask(store, store, store)
     epic = store.load(
         create.execute(
-            CreateTaskInput("Epic", TaskKind.EPIC, prompt="Epic context"),
+            CreateTaskInput(
+                "Epic",
+                TaskKind.EPIC,
+                prompt="Epic context",
+                project_id=store.project.id,
+            ),
         ).task_id,
     )
     master = store.load(

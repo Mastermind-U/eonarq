@@ -21,7 +21,10 @@ class GetBoard:
 
     def execute(self, data: BoardInput) -> BoardOutput:
         validate_id(data.epic_id, optional=True)
-        records = self.reader.load_all()
+        validate_id(data.project_id, optional=True)
+        if data.project_id is not None:
+            self.reader.load_project(data.project_id)
+        records = self.reader.load_all(data.project_id)
         by_id = {task.id: task for task in records}
         if data.epic_id is not None:
             if data.epic_id not in by_id:
@@ -41,14 +44,19 @@ class GetBoard:
         for epic in roots:
             self._visit(epic, epic.id, None, children, summaries, cells)
         done = sum(cell.status == TaskStatus.DONE for cell in cells)
+        total = sum(cell.status != TaskStatus.CANCELLED for cell in cells)
         return BoardOutput(
             tuple(summaries),
             tuple(cells),
             done,
-            len(cells),
-            round(done / len(cells) * 100, 1) if cells else 0,
+            total,
+            round(done / total * 100, 1) if total else 0,
             summarize_flow(
-                children.get(data.epic_id, []) if data.epic_id else roots,
+                children.get(data.epic_id, [])
+                if data.epic_id
+                else records
+                if data.project_id
+                else roots,
             ),
         )
 
@@ -81,7 +89,10 @@ class GetBoard:
                 sum(item[1] for item in progress),
             )
         else:
-            done, total = int(task.status == TaskStatus.DONE), 1
+            done, total = (
+                int(task.status == TaskStatus.DONE),
+                int(task.status != TaskStatus.CANCELLED),
+            )
             cells.append(
                 CellData(task.id, epic_id, master_id, task.title, task.status),
             )
@@ -96,8 +107,10 @@ class GetBoard:
                 task.version,
                 done,
                 total,
-                round(done / total * 100, 1),
+                round(done / total * 100, 1) if total else 0,
                 summarize_flow(descendants),
+                task.project_id,
+                task.action,
             ),
         )
         return done, total

@@ -25,7 +25,12 @@ from tests.units.fakes import MemoryStore
 
 def test_create_trims_text_and_preserves_prompt(store: MemoryStore) -> None:
     result = CreateTask(store, store, store).execute(
-        CreateTaskInput("  Epic  ", TaskKind.EPIC, prompt=" # Exact prompt\n"),
+        CreateTaskInput(
+            "  Epic  ",
+            TaskKind.EPIC,
+            prompt=" # Exact prompt\n",
+            project_id=store.project.id,
+        ),
     )
     task = store.load(result.task_id)
     assert task.title == "Epic"
@@ -137,7 +142,12 @@ def test_empty_parent_can_close_and_omitted_fields_stay_intact(
     create = CreateTask(store, store, store)
     task = store.load(
         create.execute(
-            CreateTaskInput("Epic", TaskKind.EPIC, prompt="Exact"),
+            CreateTaskInput(
+                "Epic",
+                TaskKind.EPIC,
+                prompt="Exact",
+                project_id=store.project.id,
+            ),
         ).task_id,
     )
     UpdateTask(store, store).execute(
@@ -206,7 +216,13 @@ def test_move_master_between_epics(
     epic, master, child = tree
     target = store.load(
         CreateTask(store, store, store)
-        .execute(CreateTaskInput("Another epic", TaskKind.EPIC))
+        .execute(
+            CreateTaskInput(
+                "Another epic",
+                TaskKind.EPIC,
+                project_id=store.project.id,
+            ),
+        )
         .task_id,
     )
     MoveTask(store, store).execute(
@@ -340,7 +356,7 @@ def test_stale_move_or_delete_is_rejected(
 def test_validation_runs_before_storage(store: MemoryStore) -> None:
     with pytest.raises(InvalidTask):
         CreateTask(store, store, store).execute(
-            CreateTaskInput(" ", TaskKind.EPIC),
+            CreateTaskInput(" ", TaskKind.EPIC, project_id=store.project.id),
         )
     with pytest.raises(InvalidTask):
         UpdateTask(store, store).execute(UpdateTaskInput(uuid7(), 0))
@@ -359,7 +375,11 @@ def test_begin_failure_is_rolled_back(store: MemoryStore) -> None:
     store.begin_error = RuntimeError("Busy")
     with pytest.raises(RuntimeError, match="Busy"):
         CreateTask(store, store, store).execute(
-            CreateTaskInput("Title", TaskKind.EPIC),
+            CreateTaskInput(
+                "Title",
+                TaskKind.EPIC,
+                project_id=store.project.id,
+            ),
         )
     assert store.rollbacks == 1
 

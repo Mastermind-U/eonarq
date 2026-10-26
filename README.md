@@ -3,19 +3,22 @@
 A local tracker for long-running epics, editable prompts and coding agents.
 
 ```text
-Epic
-  └─ Master task
-       └─ Subtask
+Project
+  └─ Epic
+       └─ Master task
+            └─ Subtask
 ```
 
 The web interface and MCP tools share one SQLite database and the same application use cases. No account or authentication is required. The default published address is loopback only.
 
 - Create, edit, reorder, move and delete tasks through MCP or the HTTP API.
 - Create, edit, complete and delete tasks in the web interface. Edit Markdown prompts at every level.
-- The overview is an agile board with To do, In progress, Blocked and Done columns. Drag an epic by its handle to change its status, or use its status menu with a keyboard or touch screen.
+- Select a project from the dropdown above Epics; use its + button to create one. Projects have editable shared prompts.
+- The project board shows every epic, master task and subtask in To do, In progress, Blocked, Done and Cancelled columns. Enable Group by epic for separate lanes. Drag a card or use its status menu with a keyboard or touch screen.
+- Every task has an Action: `RESEARCH`, `ACTION` (default), or `CHECK`. Edit it alongside the task prompt.
 - Open an epic to see its progress diagram, master tasks and subtasks. Progress is one compact field of squares; hover or focus a square to outline its master task. Click a square to edit its task and prompt.
-- Metrics show leaf-task progress, closed epics/master tasks, work in progress and blocked work. The overview counts epics; an epic page counts its direct master tasks. WIP includes both in-progress and blocked cards.
-- MCP can load the selected prompt together with its current epic/master context. Changes made in the browser are immediately available to agents; the browser refreshes external changes every five seconds while the editor is closed.
+- Metrics show leaf-task progress, closed epics/master tasks, work in progress and blocked work. The project board counts all task levels; an epic page counts its direct master tasks. WIP includes both in-progress and blocked cards.
+- MCP can load the selected prompt together with its current project/epic/master context. Changes made in the browser are immediately available to agents; the browser refreshes external changes every five seconds while the editor is closed.
 
 ## Run with Docker (recommended)
 
@@ -35,7 +38,7 @@ Open **http://127.0.0.1:8765**.
 | Interactive HTTP API | `http://127.0.0.1:8765/docs` |
 | Health | `http://127.0.0.1:8765/health` |
 
-Migrations run before the server starts. Data lives in the `eonarq_data` named volume at `/data/eonarq.sqlite3`. Rebuilding the image, restarting, or running `docker compose down` preserves it; `down -v` deletes the volume.
+Migrations run before the server starts. This pre-release schema is kept in a single initial revision; an existing database already stamped `0001_initial` needs an explicit SQL upgrade before running a changed schema. Back it up first; rebuilding alone does not alter that database. Data lives in the `eonarq_data` named volume at `/data/eonarq.sqlite3`. Rebuilding the image, restarting, or running `docker compose down` preserves it; `down -v` deletes the volume.
 
 ```sh
 docker compose logs -f eonarq
@@ -67,7 +70,21 @@ docker compose cp eonarq:/data/backup.sqlite3 ./backup.sqlite3
 
 ## Connect Codex
 
-Start Eonarq with Docker or the native command below, then add its HTTP endpoint:
+Start Eonarq with Docker or the native command below. It exposes MCP over **Streamable HTTP** at **`http://127.0.0.1:8765/mcp`**.
+
+### Configure through settings
+
+1. Open **Settings → MCP servers → Add server** (in the IDE extension, open the gear menu and select **MCP servers**).
+2. Name the server `eonarq` and select **Streamable HTTP**.
+3. Set the URL to `http://127.0.0.1:8765/mcp`. Include `/mcp`; the root address serves the web interface.
+4. Leave command, arguments and authentication fields unset. Eonarq connects to the already-running service and requires no token.
+5. Save, then select **Restart** in the desktop app or **Restart extension** in the IDE extension. Check `/mcp` after restarting.
+
+If you previously added a server such as `http-localhost-8765` with `command = "eonarq"` and `args = [""]`, replace that entry with the HTTP connection. `command` and `args` configure a **STDIO** server; Eonarq's CLI starts the web service and does not implement STDIO MCP. A URL-like server name alone does not configure an HTTP connection.
+
+### Configure through the CLI or config.toml
+
+Add the same HTTP endpoint with the Codex CLI:
 
 ```sh
 codex mcp add eonarq --url http://127.0.0.1:8765/mcp
@@ -80,6 +97,7 @@ Alternatively, add this to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.eonarq]
 url = "http://127.0.0.1:8765/mcp"
+enabled = true
 ```
 
 Start a new Codex session and check `/mcp`. Configuration is shared by the Codex CLI and IDE extension. See [official OpenAI MCP documentation](https://developers.openai.com/codex/mcp/) and the [HTTP registration example](https://developers.openai.com/resources/docs-mcp).
@@ -115,7 +133,7 @@ Add to the working project's `AGENTS.md` or `CLAUDE.md`:
 
 ```text
 Use Eonarq to track this project's work.
-1. Read list_epics and get_board before changing the plan.
+1. Read list_projects, then list_epics/get_board with project_id before changing the plan.
 2. Read get_task and work_on_task for the selected task's latest prompt/context.
 3. Keep the epic -> master -> subtask hierarchy.
 4. Mark work in_progress before implementing, then done after its checks pass.
@@ -160,10 +178,11 @@ uv run eonarq
 
 ## Task and progress rules
 
-- The hierarchy has exactly three levels. Epics have no parent; masters belong to epics; subtasks belong to masters. Moves preserve these rules and keep the task ID and descendants.
-- States: `todo`, `in_progress`, `blocked`, `done`.
+- Projects contain a three-level task hierarchy: epic → master → subtask. Supply `project_id` when creating an epic; children inherit their parent’s project. Moves within a project preserve IDs and descendants; cross-project moves are rejected.
+- States: `todo`, `in_progress`, `blocked`, `done`, `cancelled`. Actions: `RESEARCH`, `ACTION`, `CHECK`.
+- Cancelling a parent cancels its entire subtree, including completed descendants. Reopening any descendant reopens cancelled ancestors as `in_progress`. Clear cancelled permanently deletes cancelled branches in the selected project; it preserves other projects. The browser asks before cancelling a branch or clearing tasks. Cancelled leaves remain visible until cleared and do not contribute to progress percentages.
 - A square represents a leaf: a subtask, or a master/epic that has no children. Each leaf has equal weight; progress measures completed leaves, not effort.
-- Closing the last child does not automatically close its parent. A parent can be marked done only when every immediate child is done.
+- Closing the last child does not automatically close its parent. A parent can be marked done only when every immediate child is done or cancelled.
 - Board moves use the same version checks and completion rules as HTTP/MCP commands. A rejected move keeps the card in its saved column and shows the reason.
 - Adding an open child or reopening/moving an open descendant reopens completed ancestors as `in_progress`.
 - Mutations require the current `expected_version`. A stale edit returns HTTP 409 or an MCP tool error, without overwriting newer data. On conflict, reload the task and reapply the intended change.
@@ -174,31 +193,39 @@ uv run eonarq
 
 | Tool | Purpose |
 | --- | --- |
-| `list_epics` | Epic summaries and progress |
-| `get_board(epic_id?)` | Task hierarchy, versions, progress squares and flow metrics |
+| `list_projects` | Project IDs, titles, shared prompts and versions |
+| `create_project(title, prompt?)` | Create a project |
+| `update_project(project_id, expected_version, title?, prompt?)` | Edit project instructions |
+| `list_epics(project_id?)` | Epic summaries and progress |
+| `get_board(epic_id?, project_id?)` | Task hierarchy, versions, progress squares and flow metrics |
 | `get_task(task_id)` | Full task with editable prompt and current version |
-| `get_task_prompt(task_id)` | Inherited epic/master/subtask context |
-| `create_task(title, kind, parent_id?, prompt?, position?)` | Create work at the correct level |
-| `update_task(task_id, expected_version, title?, prompt?, status?, position?)` | Edit selected fields; omitted fields stay unchanged |
+| `get_task_prompt(task_id)` | Inherited project/epic/master/subtask context |
+| `create_task(title, kind, parent_id?, prompt?, position?, project_id?, action?)` | Create work at the correct level |
+| `update_task(task_id, expected_version, title?, prompt?, status?, position?, action?)` | Edit selected fields; omitted fields stay unchanged |
 | `move_task(task_id, parent_id, expected_version)` | Move a master or subtask |
 | `delete_task(task_id, expected_version, recursive?)` | Explicit deletion |
+| `clear_cancelled(project_id)` | Permanently delete this project’s cancelled branches |
 
 MCP prompt: `work_on_task(task_id)`. Resources: `eonarq://epics`, `eonarq://tasks/{task_id}`. The prompt/resource reads current stored content on every call. Read tools advertise read-only annotations; deletion advertises destructive behavior.
 
-Example: call `create_task` with `{"title":"Make ToDo app","kind":"epic","prompt":"Goal and acceptance criteria"}`. Use its returned `task_id` as the parent when creating a `master`, then the master's ID when creating a `subtask`.
+Example: call `create_project` with `{"title":"ToDo app"}`, then `create_task` with `{"title":"Make ToDo app","kind":"epic","project_id":"<returned project_id>","action":"RESEARCH","prompt":"Goal and acceptance criteria"}`. Use its returned `task_id` as the parent when creating a `master`, then the master's ID when creating a `subtask`.
 
 ## HTTP API
 
 All payloads/responses and validation schemas are in `/docs`.
 
-Board responses include `flow` counters (`total`, `todo`, `in_progress`, `blocked`, `done`, `wip`, `completion_percent`). An unscoped board summarizes epics; `epic_id` scopes the counters to that epic's master tasks. Each task also exposes `flow` for its immediate children. These counters describe explicit task statuses; leaf completion remains a separate progress measure.
+Board responses include `flow` counters (`total`, `todo`, `in_progress`, `blocked`, `done`, `cancelled`, `wip`, `completion_percent`). Use `project_id` to scope tasks and flow counters to a project. `epic_id` additionally scopes the tree to one epic and the flow counters to its master tasks. Without either filter, the response covers all projects and summarizes their epics. Each task also exposes `flow` for its immediate children. These counters describe explicit task statuses; leaf completion remains a separate progress measure.
 
 | Method | Path | Input |
 | --- | --- | --- |
-| GET | `/api/planning/q/board` | Optional `epic_id` query parameter |
+| GET | `/api/planning/q/projects` | List projects with their editable prompts |
+| GET | `/api/planning/q/board` | Optional `project_id` and `epic_id` query parameters |
+| POST | `/api/planning/c/projects/create` | `title`, optional `prompt` |
+| POST | `/api/planning/c/projects/update` | `project_id`, `expected_version`, optional `title`, `prompt` |
+| POST | `/api/planning/c/clear-cancelled` | `project_id` |
 | GET | `/api/planning/q/tasks/{id}` | UUID path parameter |
 | GET | `/api/planning/q/tasks/{id}/prompt` | UUID path parameter |
-| POST | `/api/planning/c/create` | `title`, `kind`, optional `parent_id`, `prompt`, `position` |
+| POST | `/api/planning/c/create` | `title`, `kind`, `project_id` for epics; optional `parent_id`, `prompt`, `position`, `action` |
 | POST | `/api/planning/c/update` | `task_id`, `expected_version`, optional editable fields |
 | POST | `/api/planning/c/move` | `task_id`, `parent_id`, `expected_version` |
 | POST | `/api/planning/c/delete` | `task_id`, `expected_version`, optional `recursive` |

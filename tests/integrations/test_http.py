@@ -18,6 +18,9 @@ def create(
             "kind": kind,
             "parent_id": parent_id,
             "prompt": prompt,
+            "project_id": client.get("/api/planning/q/projects").json()[0][
+                "id"
+            ],
         },
     )
     assert response.status_code == 201, response.text
@@ -204,7 +207,11 @@ def test_local_shell_schema_and_origin_boundary(client: TestClient) -> None:
         client.get("/health", headers={"host": "evil.example"}).status_code
         == 400
     )
-    payload = {"title": "Cross-origin", "kind": "epic"}
+    payload = {
+        "title": "Cross-origin",
+        "kind": "epic",
+        "project_id": client.get("/api/planning/q/projects").json()[0]["id"],
+    }
     assert (
         client.post(
             "/api/planning/c/create",
@@ -245,6 +252,7 @@ def test_agile_metrics_follow_commands_and_scope(client: TestClient) -> None:
         "done": 0,
         "wip": 1,
         "completion_percent": 0,
+        "cancelled": 0,
     }
     scoped = client.get(
         "/api/planning/q/board",

@@ -4,11 +4,16 @@ from uuid import UUID, uuid7
 
 from eonarq.planning.common.domain.exceptions import TaskConflict
 from eonarq.planning.common.domain.invariants import (
+    ensure_action,
     ensure_position,
     ensure_status,
     ensure_text,
 )
-from eonarq.planning.common.domain.types import TaskKind, TaskStatus
+from eonarq.planning.common.domain.types import (
+    TaskAction,
+    TaskKind,
+    TaskStatus,
+)
 from eonarq.shared_kernel.domain.entities import BaseEntity
 
 
@@ -16,6 +21,8 @@ from eonarq.shared_kernel.domain.entities import BaseEntity
 class Task(BaseEntity):
     title: str
     kind: TaskKind
+    project_id: UUID = field(kw_only=True)
+    action: TaskAction = TaskAction.ACTION
     parent_id: UUID | None = None
     prompt: str = ""
     status: TaskStatus = TaskStatus.TODO
@@ -30,6 +37,7 @@ class Task(BaseEntity):
         ensure_text(self.title, self.prompt)
         ensure_position(self.position)
         ensure_status(self.status)
+        ensure_action(self.action)
         self.title = self.title.strip()
 
     def ensure_version(self, expected: int) -> None:
@@ -43,6 +51,23 @@ class Task(BaseEntity):
         self.updated_at = datetime.now(UTC)
 
     def reopen(self) -> None:
-        if self.status == TaskStatus.DONE:
+        if self.status in (TaskStatus.DONE, TaskStatus.CANCELLED):
             self.status = TaskStatus.IN_PROGRESS
             self.touch()
+
+
+@dataclass(slots=True)
+class Project(BaseEntity):
+    title: str
+    prompt: str = ""
+    version: int = 1
+    id: UUID = field(default_factory=uuid7)
+
+    def __post_init__(self) -> None:
+        """Validate project instructions."""
+        ensure_text(self.title, self.prompt)
+        self.title = self.title.strip()
+
+    def ensure_version(self, expected: int) -> None:
+        if self.version != expected:
+            raise TaskConflict("Project changed; reload before editing")

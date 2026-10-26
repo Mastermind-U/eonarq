@@ -12,6 +12,7 @@ class GetTaskPrompt:
     def execute(self, data: TaskInput) -> PromptOutput:
         validate_id(data.task_id)
         task = self.reader.load(data.task_id)
+        project = self.reader.load_project(task.project_id)
         chain = [task]
         while chain[-1].parent_id is not None:
             chain.append(self.reader.load(chain[-1].parent_id))
@@ -19,9 +20,12 @@ class GetTaskPrompt:
             f"# {item.kind.value.title()}: {item.title}\n\n{item.prompt}"
             for item in reversed(chain)
         ]
-        content = "\n\n---\n\n".join(sections)
+        content = "\n\n---\n\n".join(
+            [f"# Project: {project.title}\n\n{project.prompt}", *sections],
+        )
         content += (
             f"\n\nTask ID: {task.id}\nVersion: {task.version}\n"
             f"Status: {task.status.value}\n"
+            f"Action: {task.action.value}\nProject ID: {project.id}\n"
         )
         return PromptOutput(task.id, task.title, content)
