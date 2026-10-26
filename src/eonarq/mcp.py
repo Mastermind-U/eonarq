@@ -15,6 +15,8 @@ def create_mcp_server(container: Container, config: Config) -> FastMCP:
             "get_task for the latest editable prompt and version. "
             "Mutate through tools; expected_version prevents stale edits. "
             "Parent completion is explicit. Use work_on_task for context."
+            " Save results and checks in update_task.report when completing "
+            "work. Read the report with get_task."
         ),
         stateless_http=True,
         json_response=True,

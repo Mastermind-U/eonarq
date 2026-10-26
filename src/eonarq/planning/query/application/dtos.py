@@ -82,6 +82,7 @@ class TaskOutput:
     updated_at: datetime
     project_id: UUID
     action: TaskAction
+    report: str
 
 
 @dataclass(frozen=True, slots=True)

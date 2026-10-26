@@ -341,6 +341,7 @@ function fillEditor(task, kind, parentId) {
   state.editor = { task, kind, parent_id: parentId };
   $('dialog-kind').textContent = kindLabels[kind].toUpperCase(); $('dialog-title').textContent = (task ? 'Edit ' : 'New ') + kindLabels[kind];
   $('task-title').value = task?.title || ''; $('task-prompt').value = task?.prompt || '';
+  $('task-report').value = task?.report || '';
   $('task-status').value = task?.status || 'todo'; $('task-status').disabled = !task;
   $('task-action').value = task?.action || 'ACTION';
   $('task-position').value = task?.position ?? children(parentId).length;
@@ -353,7 +354,7 @@ async function openEditor(id) {
 }
 async function saveEditor(event) {
   event.preventDefault(); if (!state.editor) return;
-  const editor = state.editor, data = { title: $('task-title').value, prompt: $('task-prompt').value, position: Number($('task-position').value), action: $('task-action').value };
+  const editor = state.editor, data = { title: $('task-title').value, prompt: $('task-prompt').value, report: $('task-report').value, position: Number($('task-position').value), action: $('task-action').value };
   if (editor.task && $('task-status').value === 'cancelled' && editor.task.status !== 'cancelled' && descendantCount(editor.task.id) && !confirm('Cancel this task and all its descendants?')) return;
   $('save-task').disabled = true; $('form-error').textContent = '';
   let saved = false;

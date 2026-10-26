@@ -39,6 +39,42 @@ from eonarq.shared_kernel.infrastructure.config import Config
 from eonarq.shared_kernel.infrastructure.migrations import migrate
 
 
+def test_report_storage_rollback_and_database_bound(
+    container: Container,
+) -> None:
+    _, _, child = seed(container)
+    report = "Results\nПроверено.\n"
+    with container() as scope:
+        scope.get(UpdateTask).execute(
+            UpdateTaskInput(child, 1, status=TaskStatus.DONE, report=report),
+        )
+    with container() as scope:
+        transaction = scope.get(TransactionManager)
+        transaction.begin()
+        task = scope.get(TaskRepository).load(child)
+        task.report = "Uncommitted report"
+        task.touch()
+        scope.get(Session).flush()
+        transaction.rollback()
+        assert (task.report, task.version, task.status) == (
+            report,
+            2,
+            TaskStatus.DONE,
+        )
+    statement = (
+        update(tasks_t)
+        .where(tasks_t.c.id == child)
+        .values(report="x" * 200001)
+    )
+    with (
+        pytest.raises(IntegrityError),
+        container.get(Engine).begin() as connection,
+    ):
+        connection.execute(statement)
+    with container() as scope:
+        assert scope.get(GetTask).execute(TaskInput(child)).report == report
+
+
 def test_action_constraint_uses_validate(container: Container) -> None:
     _, _, child = seed(container)
     with container() as scope:

@@ -3,6 +3,58 @@ from fastapi.testclient import TestClient
 from tests.integrations.test_http import create, get
 
 
+def test_report_completion_patch_clear_and_conflicts(
+    client: TestClient,
+) -> None:
+    epic = create(client, "Epic", "epic", prompt="Instructions")
+    task_id = epic["task_id"]
+    assert get(client, task_id)["report"] == ""
+    report = "  # Results\nВыполнено; tests passed.\n"
+    completed = client.post(
+        "/api/planning/c/update",
+        json={
+            "task_id": task_id,
+            "expected_version": 1,
+            "status": "done",
+            "report": report,
+        },
+    )
+    assert completed.status_code == 200
+    task = get(client, task_id)
+    assert (task["report"], task["status"], task["prompt"]) == (
+        report,
+        "done",
+        "Instructions",
+    )
+    stale = client.post(
+        "/api/planning/c/update",
+        json={"task_id": task_id, "expected_version": 1, "report": "Stale"},
+    )
+    assert stale.status_code == 409
+    patched = client.post(
+        "/api/planning/c/update",
+        json={"task_id": task_id, "expected_version": 2, "title": "Renamed"},
+    )
+    assert patched.status_code == 200
+    assert get(client, task_id)["report"] == report
+    invalid = client.post(
+        "/api/planning/c/update",
+        json={
+            "task_id": task_id,
+            "expected_version": 3,
+            "report": "x" * 200001,
+        },
+    )
+    assert invalid.status_code == 400
+    assert get(client, task_id)["version"] == 3
+    cleared = client.post(
+        "/api/planning/c/update",
+        json={"task_id": task_id, "expected_version": 3, "report": ""},
+    )
+    assert cleared.status_code == 200
+    assert get(client, task_id)["report"] == ""
+
+
 def test_validate_action_contract_rejects_old_name(client: TestClient) -> None:
     project_id = client.get("/api/planning/q/projects").json()[0]["id"]
     response = client.post(

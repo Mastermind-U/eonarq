@@ -71,7 +71,7 @@ def register_query_tools(server: FastMCP, container: Container) -> None:
 
     @server.tool(annotations=readonly)
     async def get_task(task_id: UUID) -> dict[str, Any]:
-        """Read a task, its editable prompt and its current version."""
+        """Read a task, its prompt, completion report and current version."""
         result = await run_in_request(
             container,
             lambda scope: scope.get(GetTask).execute(TaskInput(task_id)),

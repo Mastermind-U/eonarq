@@ -25,4 +25,5 @@ class GetTask:
             task.updated_at,
             task.project_id,
             task.action,
+            task.report,
         )

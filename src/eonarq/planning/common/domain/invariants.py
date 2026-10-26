@@ -20,6 +20,11 @@ def ensure_position(position: int) -> None:
         )
 
 
+def ensure_report(report: str) -> None:
+    if not isinstance(report, str) or len(report) > 200_000:
+        raise InvalidTask("Report must contain at most 200,000 characters")
+
+
 def ensure_status(status: TaskStatus) -> None:
     if not isinstance(status, TaskStatus):
         raise InvalidTask("Unknown task status")

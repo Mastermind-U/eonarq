@@ -12,6 +12,7 @@ from eonarq.planning.common.domain.exceptions import InvalidTask
 from eonarq.planning.common.domain.invariants import (
     ensure_action,
     ensure_position,
+    ensure_report,
     ensure_status,
     ensure_text,
 )
@@ -20,6 +21,7 @@ from eonarq.planning.common.domain.types import TaskKind
 
 def validate_create(data: CreateTaskInput) -> None:
     ensure_text(data.title, data.prompt)
+    ensure_report(data.report)
     ensure_position(data.position)
     ensure_action(data.action)
     if data.project_id is not None and not isinstance(data.project_id, UUID):
@@ -32,6 +34,8 @@ def validate_create(data: CreateTaskInput) -> None:
 
 def validate_update(data: UpdateTaskInput) -> None:
     validate_version(data.task_id, data.expected_version)
+    if data.report is not None:
+        ensure_report(data.report)
     if data.action is not None:
         ensure_action(data.action)
     if data.title is not None:

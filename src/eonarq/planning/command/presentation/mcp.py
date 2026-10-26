@@ -47,6 +47,7 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
         position: int = 0,
         project_id: UUID | None = None,
         action: TaskAction = TaskAction.ACTION,
+        report: str = "",
     ) -> dict[str, Any]:
         """Create a task in the three-level hierarchy.
 
@@ -61,6 +62,7 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
             position,
             project_id,
             action,
+            report,
         )
         return await run_in_request(
             container,
@@ -83,11 +85,14 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
         status: TaskStatus | None = None,
         position: int | None = None,
         action: TaskAction | None = None,
+        report: str | None = None,
     ) -> dict[str, Any]:
         """Edit a task or its prompt.
 
         Get the latest version first. Close children before their parent.
         Reopening a child reopens completed ancestors.
+        Save completion results in report, optionally with status=done.
+        Omit report to preserve it; pass an empty string to clear it.
         """
         data = UpdateTaskInput(
             task_id,
@@ -97,6 +102,7 @@ def register_command_tools(server: FastMCP, container: Container) -> None:
             status,
             position,
             action,
+            report,
         )
         return await run_in_request(
             container,

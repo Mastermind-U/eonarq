@@ -12,7 +12,7 @@ Project
 The web interface and MCP tools share one SQLite database and the same application use cases. No account or authentication is required. The default published address is loopback only.
 
 - Create, edit, reorder, move and delete tasks through MCP or the HTTP API.
-- Create, edit, complete and delete tasks in the web interface. Edit Markdown prompts at every level.
+- Create, edit, complete and delete tasks in the web interface. Edit Markdown prompts at every level and save completion results in a separate `report` field.
 - Select a project from the dropdown above Epics; use its + button to create one. Projects have editable shared prompts.
 - The project board shows every epic, master task and subtask in To do, In progress, Blocked, Done and Cancelled columns. Enable Group by epic for separate lanes. Drag a card or use its status menu with a keyboard or touch screen.
 - Every task has an Action: `RESEARCH`, `ACTION` (default), or `VALIDATE`. Edit it alongside the task prompt.
@@ -143,7 +143,7 @@ Use Eonarq to track this project's work.
 1. Read list_projects, then list_epics/get_board with project_id before changing the plan.
 2. Read get_task and work_on_task for the selected task's latest prompt/context.
 3. Keep the epic -> master -> subtask hierarchy.
-4. Mark work in_progress before implementing, then done after its checks pass.
+4. Mark work in_progress before implementing, then save the outcome and checks in report and mark done after its checks pass (one update_task call can set both).
 5. Read the current version before each update, move or delete.
 6. Close a master task or epic explicitly after its children are complete.
 7. Keep prompts and acceptance criteria editable by the user.
@@ -205,10 +205,10 @@ uv run eonarq
 | `update_project(project_id, expected_version, title?, prompt?)` | Edit project instructions |
 | `list_epics(project_id?)` | Epic summaries and progress |
 | `get_board(epic_id?, project_id?)` | Task hierarchy, versions, progress squares and flow metrics |
-| `get_task(task_id)` | Full task with editable prompt and current version |
+| `get_task(task_id)` | Full task with editable prompt, completion report and current version |
 | `get_task_prompt(task_id)` | Inherited project/epic/master/subtask context |
-| `create_task(title, kind, parent_id?, prompt?, position?, project_id?, action?)` | Create work at the correct level |
-| `update_task(task_id, expected_version, title?, prompt?, status?, position?, action?)` | Edit selected fields; omitted fields stay unchanged |
+| `create_task(title, kind, parent_id?, prompt?, position?, project_id?, action?, report?)` | Create work at the correct level |
+| `update_task(task_id, expected_version, title?, prompt?, status?, position?, action?, report?)` | Edit selected fields; omitted fields stay unchanged |
 | `move_task(task_id, parent_id, expected_version)` | Move a master or subtask |
 | `delete_task(task_id, expected_version, recursive?)` | Explicit deletion |
 | `clear_cancelled(project_id)` | Permanently delete this project’s cancelled branches |
@@ -216,6 +216,23 @@ uv run eonarq
 MCP prompt: `work_on_task(task_id)`. Resources: `eonarq://epics`, `eonarq://tasks/{task_id}`. The prompt/resource reads current stored content on every call. Read tools advertise read-only annotations; deletion advertises destructive behavior.
 
 Example: call `create_project` with `{"title":"ToDo app"}`, then `create_task` with `{"title":"Make ToDo app","kind":"epic","project_id":"<returned project_id>","action":"RESEARCH","prompt":"Goal and acceptance criteria"}`. Use its returned `task_id` as the parent when creating a `master`, then the master's ID when creating a `subtask`.
+
+### Completion reports
+
+Every task has a text `report` (empty by default, up to 200,000 characters). Use it for the completed work, verification results, evidence links and remaining limitations. The task editor exposes it as **Completion report**; `get_task` and the task resource return it alongside the prompt. Reports stay editable at every status. Prompts and inherited instructions retain their own field.
+
+Save the report and completion status atomically with `update_task`:
+
+```json
+{
+  "task_id": "<task UUID>",
+  "expected_version": 3,
+  "status": "done",
+  "report": "Implemented the endpoint. Unit and integration checks passed.\nRemaining: external acceptance."
+}
+```
+
+Omitting `report` preserves its value; `report: ""` clears it. Stale versions and failed completion checks leave both the report and status unchanged.
 
 ## HTTP API
 
@@ -232,7 +249,7 @@ Board responses include `flow` counters (`total`, `todo`, `in_progress`, `blocke
 | POST | `/api/planning/c/clear-cancelled` | `project_id` |
 | GET | `/api/planning/q/tasks/{id}` | UUID path parameter |
 | GET | `/api/planning/q/tasks/{id}/prompt` | UUID path parameter |
-| POST | `/api/planning/c/create` | `title`, `kind`, `project_id` for epics; optional `parent_id`, `prompt`, `position`, `action` |
+| POST | `/api/planning/c/create` | `title`, `kind`, `project_id` for epics; optional `parent_id`, `prompt`, `position`, `action`, `report` |
 | POST | `/api/planning/c/update` | `task_id`, `expected_version`, optional editable fields |
 | POST | `/api/planning/c/move` | `task_id`, `parent_id`, `expected_version` |
 | POST | `/api/planning/c/delete` | `task_id`, `expected_version`, optional `recursive` |

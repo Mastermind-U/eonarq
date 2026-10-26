@@ -17,6 +17,7 @@ class CreateTaskInput:
     position: int = 0
     project_id: UUID | None = None
     action: TaskAction = TaskAction.ACTION
+    report: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +29,7 @@ class UpdateTaskInput:
     status: TaskStatus | None = None
     position: int | None = None
     action: TaskAction | None = None
+    report: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

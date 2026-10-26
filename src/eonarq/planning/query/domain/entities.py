@@ -24,6 +24,7 @@ class TaskRecord(BaseEntity):
     updated_at: datetime
     project_id: UUID
     action: TaskAction
+    report: str
 
 
 @dataclass(slots=True)

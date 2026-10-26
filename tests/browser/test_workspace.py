@@ -88,6 +88,11 @@ def test_editable_prompts_and_explicit_completion(page: Page) -> None:
     save_form(page, "Implement API", "# Master\nAcceptance criteria")
     page.get_by_role("button", name="+ Subtask", exact=True).click()
     raw_prompt = "# Subtask\n<script>window.eonarqInjected = true</script>"
+    raw_report = (
+        "# Results\nГотово. <img src=x "
+        'onerror="window.eonarqReportInjected=true">'
+    )
+    page.locator("#task-report").fill(raw_report)
     save_form(page, "Wire the endpoint", raw_prompt)
     expect(page.locator("#waffle > .cell")).to_have_count(1)
     page.get_by_label("Mark Implement API as done", exact=True).check()
@@ -105,6 +110,7 @@ def test_editable_prompts_and_explicit_completion(page: Page) -> None:
         exact=True,
     ).click()
     expect(page.locator("#task-prompt")).to_have_value(raw_prompt)
+    expect(page.locator("#task-report")).to_have_value(raw_report)
     page.locator("#task-prompt").fill("Revised user prompt")
     page.locator("#save-task").click()
     expect(page.locator("#task-dialog")).not_to_be_visible()
@@ -115,7 +121,19 @@ def test_editable_prompts_and_explicit_completion(page: Page) -> None:
         exact=True,
     ).click()
     expect(page.locator("#task-prompt")).to_have_value("Revised user prompt")
+    expect(page.locator("#task-report")).to_have_value(raw_report)
+    page.locator("#task-report").fill("")
+    page.locator("#save-task").click()
+    expect(page.locator("#task-dialog")).not_to_be_visible()
+    page.reload()
+    page.get_by_role(
+        "button",
+        name="Edit Wire the endpoint",
+        exact=True,
+    ).click()
+    expect(page.locator("#task-report")).to_have_value("")
     assert page.evaluate("window.eonarqInjected") is None
+    assert page.evaluate("window.eonarqReportInjected") is None
     assert not errors
 
 

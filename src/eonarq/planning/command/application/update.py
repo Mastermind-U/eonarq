@@ -39,6 +39,8 @@ class UpdateTask:
                 task.title = data.title.strip()
             if data.prompt is not None:
                 task.prompt = data.prompt
+            if data.report is not None:
+                task.report = data.report
             if data.position is not None:
                 task.position = data.position
             if data.action is not None:

@@ -49,6 +49,7 @@ class CreateTask:
                 action=data.action,
                 parent_id=data.parent_id,
                 prompt=data.prompt,
+                report=data.report,
                 position=data.position,
             )
             self.saver.add(task)

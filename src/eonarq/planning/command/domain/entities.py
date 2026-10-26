@@ -6,6 +6,7 @@ from eonarq.planning.common.domain.exceptions import TaskConflict
 from eonarq.planning.common.domain.invariants import (
     ensure_action,
     ensure_position,
+    ensure_report,
     ensure_status,
     ensure_text,
 )
@@ -25,6 +26,7 @@ class Task(BaseEntity):
     action: TaskAction = TaskAction.ACTION
     parent_id: UUID | None = None
     prompt: str = ""
+    report: str = ""
     status: TaskStatus = TaskStatus.TODO
     position: int = 0
     version: int = 1
@@ -35,6 +37,7 @@ class Task(BaseEntity):
     def __post_init__(self) -> None:
         """Validate construction before the object is used."""
         ensure_text(self.title, self.prompt)
+        ensure_report(self.report)
         ensure_position(self.position)
         ensure_status(self.status)
         ensure_action(self.action)

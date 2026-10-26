@@ -82,6 +82,7 @@ tasks_t = Table(
     ),
     Column("title", String(200), nullable=False),
     Column("prompt", Text, nullable=False),
+    Column("report", Text, nullable=False, server_default=""),
     Column(
         "action",
         Enum(TaskAction, values_callable=enum_values, native_enum=False),
@@ -122,6 +123,7 @@ tasks_t = Table(
         name="task_title",
     ),
     CheckConstraint("length(prompt) <= 200000", name="task_prompt"),
+    CheckConstraint("length(report) <= 200000", name="task_report"),
     CheckConstraint(
         "position BETWEEN 0 AND 1000000 AND version >= 1",
         name="task_version_position",

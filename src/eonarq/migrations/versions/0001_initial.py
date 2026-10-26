@@ -39,6 +39,7 @@ def upgrade() -> None:
         Column("kind", String(7), nullable=False),
         Column("title", String(200), nullable=False),
         Column("prompt", Text, nullable=False),
+        Column("report", Text, nullable=False, server_default=""),
         Column("action", String(8), nullable=False),
         Column("status", String(11), nullable=False),
         Column("position", Integer, nullable=False),
@@ -75,6 +76,7 @@ def upgrade() -> None:
             name="task_title",
         ),
         CheckConstraint("length(prompt) <= 200000", name="task_prompt"),
+        CheckConstraint("length(report) <= 200000", name="task_report"),
         CheckConstraint(
             "position BETWEEN 0 AND 1000000 AND version >= 1",
             name="task_version_position",

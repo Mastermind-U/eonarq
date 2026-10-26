@@ -90,6 +90,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 "create_task",
                 {
                     "title": "MCP child",
+                    "report": "Draft results",
                     "kind": "subtask",
                     "parent_id": master["task_id"],
                 },
@@ -112,6 +113,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                     "prompt": "Edited via MCP",
                     "status": "done",
                     "action": "VALIDATE",
+                    "report": "Implemented via MCP; checks passed.\nГотово.",
                 },
             )
             assert changed["version"] == 2
@@ -131,6 +133,10 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 {"task_id": child["task_id"]},
             )
             assert current["prompt"] == "Edited via MCP"
+            assert (
+                current["report"]
+                == "Implemented via MCP; checks passed.\nГотово."
+            )
             assert current["action"] == "VALIDATE"
             assert current["project_id"] == project["project_id"]
             assert current["parent_id"] == other["task_id"]
@@ -169,12 +175,17 @@ def test_real_mcp_protocol_shared_api_and_restart(
             )
             assert isinstance(resource.contents[0], TextResourceContents)
             assert json.loads(resource.contents[0].text)["version"] == 3
+            assert (
+                json.loads(resource.contents[0].text)["report"]
+                == current["report"]
+            )
             stale = await session.call_tool(
                 "update_task",
                 {
                     "task_id": child["task_id"],
                     "expected_version": 1,
                     "title": "Stale",
+                    "report": "Stale report",
                 },
             )
             assert stale.isError
@@ -193,12 +204,14 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 )
             ).json()
             assert http_task["prompt"] == "Edited via MCP"
+            assert http_task["report"] == current["report"]
             response = await http.post(
                 url + "/api/planning/c/update",
                 json={
                     "task_id": child["task_id"],
                     "expected_version": 3,
                     "prompt": "Edited via HTTP",
+                    "report": "HTTP completion report",
                 },
             )
             assert response.status_code == 200
@@ -227,6 +240,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 "create_task",
                 {
                     "title": "Discard",
+                    "report": "Discarded draft",
                     "kind": "master",
                     "parent_id": epic["task_id"],
                     "action": "RESEARCH",
@@ -246,6 +260,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 "get_task",
                 {"task_id": discarded["task_id"]},
             )
+            assert discard_latest["report"] == "Discarded draft"
             await call(
                 session,
                 "update_task",
@@ -253,6 +268,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                     "task_id": discarded["task_id"],
                     "expected_version": discard_latest["version"],
                     "status": "cancelled",
+                    "report": "",
                 },
             )
             assert (
@@ -262,6 +278,13 @@ def test_real_mcp_protocol_shared_api_and_restart(
                     {"task_id": discard_child["task_id"]},
                 )
             )["status"] == "cancelled"
+            assert (
+                await call(
+                    session,
+                    "get_task",
+                    {"task_id": discarded["task_id"]},
+                )
+            )["report"] == ""
             cleared = await call(
                 session,
                 "clear_cancelled",
@@ -299,6 +322,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
         assert task["prompt"] == "Edited via HTTP"
         assert task["version"] == 4
         assert task["action"] == "VALIDATE"
+        assert task["report"] == "HTTP completion report"
         prompt = http.get(
             "/api/planning/q/tasks/" + task_id + "/prompt",
         ).json()["content"]
