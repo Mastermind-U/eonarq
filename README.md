@@ -15,19 +15,25 @@ The web interface and MCP tools share one SQLite database and the same applicati
 - Create, edit, complete and delete tasks in the web interface. Edit Markdown prompts at every level.
 - Select a project from the dropdown above Epics; use its + button to create one. Projects have editable shared prompts.
 - The project board shows every epic, master task and subtask in To do, In progress, Blocked, Done and Cancelled columns. Enable Group by epic for separate lanes. Drag a card or use its status menu with a keyboard or touch screen.
-- Every task has an Action: `RESEARCH`, `ACTION` (default), or `CHECK`. Edit it alongside the task prompt.
+- Every task has an Action: `RESEARCH`, `ACTION` (default), or `VALIDATE`. Edit it alongside the task prompt.
 - Open an epic to see its progress diagram, master tasks and subtasks. Progress is one compact field of squares; hover or focus a square to outline its master task. Click a square to edit its task and prompt.
 - Metrics show leaf-task progress, closed epics/master tasks, work in progress and blocked work. The project board counts all task levels; an epic page counts its direct master tasks. WIP includes both in-progress and blocked cards.
 - MCP can load the selected prompt together with its current project/epic/master context. Changes made in the browser are immediately available to agents; the browser refreshes external changes every five seconds while the editor is closed.
 
 ## Run with Docker (recommended)
 
-Install Docker with Compose v2, then run from the repository root:
+Install Docker with Compose v2. Download the main Compose file from GitHub and start the published image; a source checkout and Python installation are not required:
 
 ```sh
-docker compose up -d --build
+mkdir eonarq
+cd eonarq
+curl --fail --location --output docker-compose.yml https://raw.githubusercontent.com/Mastermind-U/eonarq/main/docker-compose.yml
+docker compose pull
+docker compose up -d
 docker compose ps
 ```
+
+In Windows PowerShell, use `curl.exe` instead of `curl` if `curl` resolves to `Invoke-WebRequest`.
 
 Open **http://127.0.0.1:8765**.
 
@@ -38,7 +44,7 @@ Open **http://127.0.0.1:8765**.
 | Interactive HTTP API | `http://127.0.0.1:8765/docs` |
 | Health | `http://127.0.0.1:8765/health` |
 
-Migrations run before the server starts. This pre-release schema is kept in a single initial revision; an existing database already stamped `0001_initial` needs an explicit SQL upgrade before running a changed schema. Back it up first; rebuilding alone does not alter that database. Data lives in the `eonarq_data` named volume at `/data/eonarq.sqlite3`. Rebuilding the image, restarting, or running `docker compose down` preserves it; `down -v` deletes the volume.
+Migrations run before the server starts. This pre-release schema is kept in a single initial revision; an existing database already stamped `0001_initial` needs an explicit SQL upgrade before running a changed schema. Back it up first; pulling a new image alone does not alter that database. Data lives in the `eonarq_data` named volume at `/data/eonarq.sqlite3`. Updating the image, restarting, or running `docker compose down` preserves it; `down -v` deletes the volume. Run Compose from the same directory to keep using the same project and volume.
 
 ```sh
 docker compose logs -f eonarq
@@ -48,16 +54,17 @@ docker compose down
 
 To change the host port, put `EONARQ_PORT=8766` in a local `.env` file, then run Compose again and update the MCP client URL. The container continues to listen on port 8765.
 
-### Run a published image
+### Update the service
 
-After CI has published the first image:
+From the directory containing `docker-compose.yml`:
 
 ```sh
-docker compose -f docker-compose.release.yml pull
-docker compose -f docker-compose.release.yml up -d
+curl --fail --location --output docker-compose.yml https://raw.githubusercontent.com/Mastermind-U/eonarq/main/docker-compose.yml
+docker compose pull
+docker compose up -d
 ```
 
-This uses `ghcr.io/mastermind-u/eonarq:latest` and the same named data volume. Set `EONARQ_TAG` in `.env` to a release tag such as `0.1.0` or a published `sha-…` tag. If the GHCR package is private, log in with `docker login ghcr.io` before pulling; make the package public in GitHub package settings for anonymous pulls.
+The main Compose file uses `ghcr.io/mastermind-u/eonarq:latest`. Set `EONARQ_TAG` in `.env` to a release tag such as `0.1.0` or a published `sha-…` tag to pin the image. CI builds and publishes the image. If the GHCR package is private, log in with `docker login ghcr.io` before pulling; make the package public in GitHub package settings for anonymous pulls.
 
 ### Back up the database
 
@@ -179,7 +186,7 @@ uv run eonarq
 ## Task and progress rules
 
 - Projects contain a three-level task hierarchy: epic → master → subtask. Supply `project_id` when creating an epic; children inherit their parent’s project. Moves within a project preserve IDs and descendants; cross-project moves are rejected.
-- States: `todo`, `in_progress`, `blocked`, `done`, `cancelled`. Actions: `RESEARCH`, `ACTION`, `CHECK`.
+- States: `todo`, `in_progress`, `blocked`, `done`, `cancelled`. Actions: `RESEARCH`, `ACTION`, `VALIDATE`.
 - Cancelling a parent cancels its entire subtree, including completed descendants. Reopening any descendant reopens cancelled ancestors as `in_progress`. Clear cancelled permanently deletes cancelled branches in the selected project; it preserves other projects. The browser asks before cancelling a branch or clearing tasks. Cancelled leaves remain visible until cleared and do not contribute to progress percentages.
 - A square represents a leaf: a subtask, or a master/epic that has no children. Each leaf has equal weight; progress measures completed leaves, not effort.
 - Closing the last child does not automatically close its parent. A parent can be marked done only when every immediate child is done or cancelled.

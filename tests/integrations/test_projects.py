@@ -3,6 +3,34 @@ from fastapi.testclient import TestClient
 from tests.integrations.test_http import create, get
 
 
+def test_validate_action_contract_rejects_old_name(client: TestClient) -> None:
+    project_id = client.get("/api/planning/q/projects").json()[0]["id"]
+    response = client.post(
+        "/api/planning/c/create",
+        json={
+            "title": "Validate",
+            "kind": "epic",
+            "project_id": project_id,
+            "action": "VALIDATE",
+        },
+    )
+    assert response.status_code == 201
+    task_id = response.json()["task_id"]
+    assert get(client, task_id)["action"] == "VALIDATE"
+    rejected = client.post(
+        "/api/planning/c/update",
+        json={"task_id": task_id, "expected_version": 1, "action": "CHECK"},
+    )
+    assert rejected.status_code == 422
+    assert get(client, task_id)["version"] == 1
+    schema = client.get("/openapi.json").json()
+    assert schema["components"]["schemas"]["TaskAction"]["enum"] == [
+        "RESEARCH",
+        "ACTION",
+        "VALIDATE",
+    ]
+
+
 def test_project_isolation_actions_cancellation_and_clear(
     client: TestClient,
 ) -> None:
@@ -72,7 +100,7 @@ def test_project_isolation_actions_cancellation_and_clear(
             json={
                 "task_id": child["task_id"],
                 "expected_version": 1,
-                "action": "CHECK",
+                "action": "VALIDATE",
             },
         ).status_code
         == 200
@@ -87,7 +115,7 @@ def test_project_isolation_actions_cancellation_and_clear(
     )
     assert response.status_code == 200
     assert get(client, child["task_id"])["status"] == "cancelled"
-    assert get(client, child["task_id"])["action"] == "CHECK"
+    assert get(client, child["task_id"])["action"] == "VALIDATE"
     result = client.post(
         "/api/planning/c/clear-cancelled",
         json={"project_id": original["id"]},

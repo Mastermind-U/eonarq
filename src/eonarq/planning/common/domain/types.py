@@ -18,4 +18,4 @@ class TaskStatus(StrEnum):
 class TaskAction(StrEnum):
     RESEARCH = "RESEARCH"
     ACTION = "ACTION"
-    CHECK = "CHECK"
+    VALIDATE = "VALIDATE"

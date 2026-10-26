@@ -6,7 +6,7 @@ import pytest
 from alembic import command
 from alembic.config import Config as AlembicConfig
 from dishka import Container
-from sqlalchemy import Engine, inspect, text
+from sqlalchemy import Engine, inspect, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,12 @@ from eonarq.planning.command.application.gateways import TaskRepository
 from eonarq.planning.command.application.update import UpdateTask
 from eonarq.planning.command.domain.entities import Task
 from eonarq.planning.common.domain.exceptions import InvalidTask, TaskConflict
-from eonarq.planning.common.domain.types import TaskKind, TaskStatus
+from eonarq.planning.common.domain.types import (
+    TaskAction,
+    TaskKind,
+    TaskStatus,
+)
+from eonarq.planning.common.infrastructure.tables import tasks_t
 from eonarq.planning.query.application.board import GetBoard
 from eonarq.planning.query.application.dtos import BoardInput, TaskInput
 from eonarq.planning.query.application.gateways import TaskReader
@@ -32,6 +37,27 @@ from eonarq.shared_kernel.application.gateways import (
 )
 from eonarq.shared_kernel.infrastructure.config import Config
 from eonarq.shared_kernel.infrastructure.migrations import migrate
+
+
+def test_action_constraint_uses_validate(container: Container) -> None:
+    _, _, child = seed(container)
+    with container() as scope:
+        scope.get(UpdateTask).execute(
+            UpdateTaskInput(child, 1, action=TaskAction.VALIDATE),
+        )
+    statement = (
+        update(tasks_t).where(tasks_t.c.id == child).values(action="CHECK")
+    )
+    with (
+        pytest.raises(IntegrityError),
+        container.get(Engine).begin() as connection,
+    ):
+        connection.execute(statement)
+    with container() as scope:
+        assert (
+            scope.get(GetTask).execute(TaskInput(child)).action
+            == TaskAction.VALIDATE
+        )
 
 
 def seed(container: Container) -> tuple[UUID, UUID, UUID]:

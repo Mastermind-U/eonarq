@@ -164,7 +164,7 @@ def test_cancellation_reopening_progress_and_project_clear(
             child.id,
             child.version,
             status=TaskStatus.DONE,
-            action=TaskAction.CHECK,
+            action=TaskAction.VALIDATE,
         ),
     )
     update.execute(
@@ -181,7 +181,7 @@ def test_cancellation_reopening_progress_and_project_clear(
         UpdateTaskInput(child.id, child.version, status=TaskStatus.TODO),
     )
     assert epic.status == master.status == TaskStatus.IN_PROGRESS
-    assert child.action == TaskAction.CHECK
+    assert child.action == TaskAction.VALIDATE
     update.execute(
         UpdateTaskInput(
             master.id,

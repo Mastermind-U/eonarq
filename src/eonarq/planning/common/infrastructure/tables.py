@@ -102,7 +102,7 @@ tasks_t = Table(
         name="task_status",
     ),
     CheckConstraint(
-        "action IN ('RESEARCH','ACTION','CHECK')",
+        "action IN ('RESEARCH','ACTION','VALIDATE')",
         name="task_action",
     ),
     UniqueConstraint("project_id", "id", name="task_project_identity"),

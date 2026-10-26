@@ -1,7 +1,6 @@
 services:
   eonarq:
-    build: .
-    image: ghcr.io/mastermind-u/eonarq:local
+    image: ghcr.io/mastermind-u/eonarq:${EONARQ_TAG:-latest}
     ports:
       - "127.0.0.1:${EONARQ_PORT:-8765}:8765"
     environment:

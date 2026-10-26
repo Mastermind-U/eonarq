@@ -62,7 +62,7 @@ def upgrade() -> None:
         ForeignKeyConstraint(["project_id"], ["projects.id"]),
         UniqueConstraint("project_id", "id", name="task_project_identity"),
         CheckConstraint(
-            "action IN ('RESEARCH','ACTION','CHECK')",
+            "action IN ('RESEARCH','ACTION','VALIDATE')",
             name="task_action",
         ),
         CheckConstraint(

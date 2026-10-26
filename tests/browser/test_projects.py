@@ -20,11 +20,11 @@ def test_projects_grouping_actions_and_clear(page: Page) -> None:
     page.reload()
     expect(page.get_by_label("Group by epic")).to_be_checked()
     page.locator('.kanban-card[data-task="' + child + '"] .task-edit').click()
-    page.locator("#task-action").select_option("CHECK")
+    page.locator("#task-action").select_option("VALIDATE")
     save_form(page, "Check result", "Check instructions")
     expect(
         page.locator('.kanban-card[data-task="' + child + '"] .action-badge'),
-    ).to_have_text("CHECK")
+    ).to_have_text("VALIDATE")
     page.locator("#new-project").click()
     page.locator("#project-title").fill("Other project")
     page.locator("#project-prompt").fill("Other instructions")

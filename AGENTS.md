@@ -42,7 +42,7 @@ uv sync --locked
 uv run eonarq
 ```
 
-Docker is the documented default: `docker compose up -d --build`. No native compilation or bundled executable.
+Docker is the documented default: download `docker-compose.yml`, run `docker compose pull`, then `docker compose up -d`. The main Compose file uses the published GHCR image and requires no source checkout or local build. No native compilation or bundled executable.
 
 For every changed Python file, run in order:
 

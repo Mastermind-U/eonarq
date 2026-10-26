@@ -111,7 +111,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                     "expected_version": 1,
                     "prompt": "Edited via MCP",
                     "status": "done",
-                    "action": "CHECK",
+                    "action": "VALIDATE",
                 },
             )
             assert changed["version"] == 2
@@ -131,7 +131,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
                 {"task_id": child["task_id"]},
             )
             assert current["prompt"] == "Edited via MCP"
-            assert current["action"] == "CHECK"
+            assert current["action"] == "VALIDATE"
             assert current["project_id"] == project["project_id"]
             assert current["parent_id"] == other["task_id"]
             epics = await call(session, "list_epics")
@@ -298,7 +298,7 @@ def test_real_mcp_protocol_shared_api_and_restart(
         task = http.get("/api/planning/q/tasks/" + task_id).json()
         assert task["prompt"] == "Edited via HTTP"
         assert task["version"] == 4
-        assert task["action"] == "CHECK"
+        assert task["action"] == "VALIDATE"
         prompt = http.get(
             "/api/planning/q/tasks/" + task_id + "/prompt",
         ).json()["content"]
