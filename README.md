@@ -22,7 +22,64 @@ The web interface and MCP tools share one SQLite database and the same applicati
 
 ## Run with Docker (recommended)
 
-Install Docker with Compose v2. Download the main Compose file from GitHub and start the published image; a source checkout and Python installation are not required:
+Install Docker and start the published image; a source checkout and Python installation are not required:
+
+```sh
+docker pull ghcr.io/mastermind-u/eonarq:latest
+docker run -d --name eonarq --init --restart unless-stopped --stop-timeout 20 -p 127.0.0.1:8765:8765 -v eonarq_data:/data ghcr.io/mastermind-u/eonarq:latest
+docker ps --filter name=eonarq
+```
+
+These commands work in PowerShell and POSIX shells.
+
+Open **http://127.0.0.1:8765**.
+
+| Endpoint | URL |
+| --- | --- |
+| Web interface | `http://127.0.0.1:8765/` |
+| Streamable HTTP MCP | `http://127.0.0.1:8765/mcp` |
+| Interactive HTTP API | `http://127.0.0.1:8765/docs` |
+| Health | `http://127.0.0.1:8765/health` |
+
+Migrations run before the server starts. This pre-release schema is kept in a single initial revision; an existing database already stamped `0001_initial` needs an explicit SQL upgrade before running a changed schema. Back it up first; pulling a new image alone does not alter that database. Data lives in the `eonarq_data` named volume at `/data/eonarq.sqlite3`. Stopping or removing the container preserves this named volume; reuse it when recreating the container.
+
+```sh
+docker logs -f eonarq
+docker restart eonarq
+docker stop eonarq
+```
+
+To change the host port, use `-p 127.0.0.1:8766:8765` when creating the container and update the MCP client URL. The container continues to listen on port 8765.
+
+If switching an existing Compose installation, reuse its data volume. Find the volume name with `docker inspect eonarq-eonarq-1 --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}'`, then stop that container with `docker stop eonarq-eonarq-1`. Replace `eonarq_data` in the launch command with the printed name (usually `eonarq_eonarq_data`) to keep the existing database.
+
+### Update the service
+
+Pull the new image and recreate the container with the same data volume and port:
+
+```sh
+docker pull ghcr.io/mastermind-u/eonarq:latest
+docker stop eonarq
+docker rm eonarq
+docker run -d --name eonarq --init --restart unless-stopped --stop-timeout 20 -p 127.0.0.1:8765:8765 -v eonarq_data:/data ghcr.io/mastermind-u/eonarq:latest
+```
+
+Use the same volume name chosen at installation, including when switching from Compose. Replace `latest` in both commands with a release tag such as `0.1.0` or a published `sha-…` tag to pin the image. CI builds and publishes the image. If the GHCR package is private, log in with `docker login ghcr.io` before pulling; make the package public in GitHub package settings for anonymous pulls.
+
+### Back up the database
+
+Create a consistent snapshot with SQLite's Backup API while the application keeps running, then copy the snapshot to the host with `docker cp`. The image already includes Python and its `sqlite3` module:
+
+```sh
+docker exec eonarq python -c "import sqlite3; source = sqlite3.connect('file:/data/eonarq.sqlite3?mode=ro', uri=True); target = sqlite3.connect('/tmp/eonarq-backup.sqlite3'); source.backup(target, pages=256, sleep=0.1); target.close(); source.close()"
+docker cp eonarq:/tmp/eonarq-backup.sqlite3 ./backup.sqlite3
+```
+
+The self-contained backup, including committed WAL changes, is now at `./backup.sqlite3` on the host. Use a different host filename for each backup. With Compose, replace `eonarq` in these commands with the container name shown by `docker compose ps -a` (usually `eonarq-eonarq-1`).
+
+### Docker Compose (optional)
+
+Compose v2 is an alternative to the `docker run` command above. Download the main Compose file and start the published image:
 
 ```sh
 mkdir eonarq
@@ -35,28 +92,7 @@ docker compose ps
 
 In Windows PowerShell, use `curl.exe` instead of `curl` if `curl` resolves to `Invoke-WebRequest`.
 
-Open **http://127.0.0.1:8765**.
-
-| Endpoint | URL |
-| --- | --- |
-| Web interface | `http://127.0.0.1:8765/` |
-| Streamable HTTP MCP | `http://127.0.0.1:8765/mcp` |
-| Interactive HTTP API | `http://127.0.0.1:8765/docs` |
-| Health | `http://127.0.0.1:8765/health` |
-
-Migrations run before the server starts. This pre-release schema is kept in a single initial revision; an existing database already stamped `0001_initial` needs an explicit SQL upgrade before running a changed schema. Back it up first; pulling a new image alone does not alter that database. Data lives in the `eonarq_data` named volume at `/data/eonarq.sqlite3`. Updating the image, restarting, or running `docker compose down` preserves it; `down -v` deletes the volume. Run Compose from the same directory to keep using the same project and volume.
-
-```sh
-docker compose logs -f eonarq
-docker compose restart eonarq
-docker compose down
-```
-
-To change the host port, put `EONARQ_PORT=8766` in a local `.env` file, then run Compose again and update the MCP client URL. The container continues to listen on port 8765.
-
-### Update the service
-
-From the directory containing `docker-compose.yml`:
+Update from the same directory:
 
 ```sh
 curl --fail --location --output docker-compose.yml https://raw.githubusercontent.com/Mastermind-U/eonarq/main/docker-compose.yml
@@ -64,16 +100,9 @@ docker compose pull
 docker compose up -d
 ```
 
-The main Compose file uses `ghcr.io/mastermind-u/eonarq:latest`. Set `EONARQ_TAG` in `.env` to a release tag such as `0.1.0` or a published `sha-…` tag to pin the image. CI builds and publishes the image. If the GHCR package is private, log in with `docker login ghcr.io` before pulling; make the package public in GitHub package settings for anonymous pulls.
+Use `docker compose logs -f eonarq`, `docker compose restart eonarq` and `docker compose down` to manage the service. Compose keeps data in its project-prefixed named volume (usually `eonarq_eonarq_data`), which differs from the `docker run` example's `eonarq_data`. Keep the same Compose directory/project when updating; `down` preserves the volume and `down -v` deletes it. The backup commands above also work with the Compose container's name.
 
-### Back up the database
-
-Use SQLite's backup API so the backup includes committed WAL changes:
-
-```sh
-docker compose exec -T eonarq python -c "import sqlite3; source = sqlite3.connect('/data/eonarq.sqlite3'); target = sqlite3.connect('/data/backup.sqlite3'); source.backup(target); target.close(); source.close()"
-docker compose cp eonarq:/data/backup.sqlite3 ./backup.sqlite3
-```
+Set `EONARQ_PORT=8766` or `EONARQ_TAG=<published tag>` in a local `.env` file to change the host port or pin the image, then run `docker compose up -d` and update the MCP URL if the port changed.
 
 ## Connect Codex
 
@@ -171,7 +200,7 @@ uv run eonarq --database sqlite:///./data/another.sqlite3 --port 8766
 | --- | --- | --- |
 | `EONARQ_DATABASE_URL` | `sqlite:///./data/eonarq.sqlite3` | Standard synchronous SQLite URL |
 | `EONARQ_HOST` | `127.0.0.1` | Listener binding |
-| `EONARQ_PORT` | `8765` | Listener port; Compose uses it for the host port |
+| `EONARQ_PORT` | `8765` | Listener port; Docker host publishing uses `-p` |
 | `EONARQ_ALLOWED_HOSTS` | `localhost;127.0.0.1;[::1]` | Semicolon-separated permitted Host values |
 | `EONARQ_BROWSER_CHANNEL` | unset | Test-only Playwright channel, e.g. `msedge` |
 

@@ -31,7 +31,7 @@ src/eonarq/migrations/versions/
 - HTTP uses `DishkaSyncRoute`, `FromDishka`, request scopes and `/api/planning/c` or `/api/planning/q`. Handlers convert input and call `execute`. Reuse DTOs as HTTP schemas when representations match.
 - MCP transport is asynchronous ASGI, but each tool runs synchronous use cases in a worker thread with its own synchronous Dishka request scope. Never share sessions between calls or block the ASGI event loop with database work.
 - Jinja serves templates; JavaScript uses the API. Render user titles/prompts with textContent/form values, never HTML. Keep prompts editable and shared between UI/API/MCP. No credentials, accounts or authentication.
-- Default native binding and Compose publishing are loopback only. Keep same-origin write and host checks without adding an authentication flow. SQLite data must survive restart and image replacement.
+- Default native binding and Docker publishing are loopback only. Keep same-origin write and host checks without adding an authentication flow. SQLite data must survive restart and image replacement.
 
 ## Running and checks
 
@@ -42,7 +42,7 @@ uv sync --locked
 uv run eonarq
 ```
 
-Docker is the documented default: download `docker-compose.yml`, run `docker compose pull`, then `docker compose up -d`. The main Compose file uses the published GHCR image and requires no source checkout or local build. No native compilation or bundled executable.
+Docker is the documented default: pull `ghcr.io/mastermind-u/eonarq:latest`, then use `docker run` with a persistent named volume and loopback port publishing as shown in README.md. Compose is an optional alternative using the published image. No source checkout, local build, native compilation or bundled executable is required. Backups use SQLite's online Backup API in the running container, then `docker cp` to copy the snapshot to the host without stopping the service.
 
 For every changed Python file, run in order:
 
