@@ -16,7 +16,7 @@ The web interface and MCP tools share one SQLite database and the same applicati
 - Select a project from the dropdown above Epics; use its + button to create one. Projects have editable shared prompts.
 - The project board shows every epic, master task and subtask in To do, In progress, Blocked, Done and Cancelled columns. Enable Group by epic for separate lanes. Drag a card or use its status menu with a keyboard or touch screen.
 - Every task has an Action: `RESEARCH`, `ACTION` (default), or `VALIDATE`. Edit it alongside the task prompt.
-- Open an epic to see its progress diagram, master tasks and subtasks. Progress is one compact field of squares; hover or focus a square to outline its master task. Click a square to edit its task and prompt.
+- Open an epic to see its progress diagram, master tasks and subtasks. Progress is one compact field of squares; hover or focus a square to outline its master task. Click a square to edit its task and prompt. Green squares are done, yellow squares are WIP (in progress or blocked), red squares are cancelled, and hollow squares are to do.
 - Metrics show leaf-task progress, closed epics/master tasks, work in progress and blocked work. The project board counts all task levels; an epic page counts its direct master tasks. WIP includes both in-progress and blocked cards.
 - MCP can load the selected prompt together with its current project/epic/master context. Changes made in the browser are immediately available to agents; the browser refreshes external changes every five seconds while the editor is closed.
 

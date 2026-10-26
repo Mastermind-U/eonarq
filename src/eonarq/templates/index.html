@@ -36,7 +36,7 @@
         <div class="metric"><strong id="metric-blocked">0</strong><span id="metric-blocked-label">blocked epics</span></div>
       </div>
       <section class="panel chart-panel" id="epic-chart" aria-labelledby="chart-title" hidden>
-        <div class="panel-heading"><h2 id="chart-title">Task progress</h2><div class="legend"><span><i class="swatch done"></i>Done</span><span><i class="swatch"></i>Open</span></div></div>
+        <div class="panel-heading"><h2 id="chart-title">Task progress</h2><div class="legend"><span><i class="swatch done"></i>Done</span><span title="In progress or blocked"><i class="swatch wip"></i>WIP</span><span><i class="swatch cancelled"></i>Cancelled</span><span><i class="swatch"></i>To do</span></div></div>
         <div class="chart-padding"><div class="waffle" id="waffle" role="group" aria-label="Task progress squares"></div></div>
         <output id="cell-hint" class="cell-hint" aria-live="polite">Create an epic to start your plan.</output>
         <div class="chart-clarification" id="chart-clarification">Each square is a leaf task. Hover a square to outline its epic.</div>
